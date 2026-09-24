@@ -1,0 +1,1 @@
+var e=[`Alta`,`Media`,`Baja`],t=[`Efectivo`,`Débito`,`Crédito`,`Transferencia`],n=[`Proveedores`,`Servicios básicos`,`Arriendo`,`Sueldos`,`Insumos`,`Imprevistos`,`Otros`];export{t as n,e as r,n as t};

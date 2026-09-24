@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react'
 import { Camera, Sparkles, TrendingUp } from 'lucide-react'
 import { allCategories, inferCategory } from '../lib/categories'
+import { nextInternalCode } from '../lib/ean13'
 import { marginPct } from '../lib/analytics'
 import { beepOk } from '../lib/sound'
 import { getStockInfo, suggestRotation } from '../lib/stock'
@@ -101,9 +102,13 @@ function ProductFormInner({ open, onClose, product, initialBarcode, onSaved }: P
       minStock: minN,
     }
     if (product) {
-      actions.updateProduct(product.id, data)
+      // El stock solo se envía si el usuario lo cambió: así no se pisa una venta
+      // que otra caja hizo mientras este formulario estaba abierto.
+      const { stock: newStock, ...rest } = data
+      const patch = newStock !== roundQty(product.stock, product.unit) || unit !== product.unit ? data : rest
+      actions.updateProduct(product.id, patch)
       toast.success(`"${cleanName}" actualizado`)
-      onSaved?.({ ...product, ...data })
+      onSaved?.({ ...product, ...patch })
     } else {
       const created = actions.addProduct(data)
       toast.success(`"${cleanName}" agregado al inventario`)
@@ -132,7 +137,28 @@ function ProductFormInner({ open, onClose, product, initialBarcode, onSaved }: P
       }
     >
       <form id="product-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
-        <Field label="Código de barras" htmlFor="pf-code" error={errors.barcode} hint="Escanéalo con la pistola o la cámara. Opcional para productos a granel.">
+        <Field
+          label="Código de barras"
+          htmlFor="pf-code"
+          error={errors.barcode}
+          hint={
+            barcode ? (
+              'Escanéalo con la pistola o la cámara.'
+            ) : (
+              <span>
+                ¿No trae código?{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-brand-ink underline"
+                  onClick={() => setBarcode(nextInternalCode(products.map((p) => p.barcode)))}
+                >
+                  Generar uno
+                </button>{' '}
+                y luego imprime su etiqueta.
+              </span>
+            )
+          }
+        >
           <div className="flex gap-2">
             <Input
               id="pf-code"

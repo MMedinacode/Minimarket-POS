@@ -78,6 +78,18 @@ export function suggestRotation(velocity: number): Rotation {
   return 'Baja'
 }
 
+/**
+ * Cuánto pedir al proveedor: lo necesario para llegar al doble del umbral de
+ * alerta, o para cubrir `days` días de venta si se vende más rápido que eso.
+ * Kilos se redondean a medio kilo; unidades hacia arriba.
+ */
+export function suggestOrderQty(product: Product, info: StockInfo, days = 7): number {
+  const target = Math.max(info.threshold * 2, info.velocity * days)
+  const need = target - Math.max(0, product.stock)
+  if (need <= 0) return 0
+  return product.unit === 'kg' ? Math.ceil(need * 2) / 2 : Math.ceil(need)
+}
+
 export function isAlert(status: StockStatus): boolean {
   return status === 'agotado' || status === 'critico'
 }

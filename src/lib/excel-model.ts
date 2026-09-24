@@ -248,9 +248,12 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
 export type ImportMode = 'merge' | 'replace'
 
 export interface ImportOutcome {
+  /** Inventario completo después de importar */
   products: Product[]
   added: number
   updated: number
+  /** Solo los productos que vinieron en el Excel (nuevos o actualizados) */
+  changed: Product[]
 }
 
 /**
@@ -263,7 +266,8 @@ export function applyImport(existing: Product[], drafts: ProductDraft[], mode: I
   const make = (d: ProductDraft): Product => ({ ...d, id: uid(), createdAt: iso, updatedAt: iso })
 
   if (mode === 'replace') {
-    return { products: drafts.map(make), added: drafts.length, updated: 0 }
+    const products = drafts.map(make)
+    return { products, added: drafts.length, updated: 0, changed: products }
   }
 
   const products = [...existing]
@@ -276,6 +280,7 @@ export function applyImport(existing: Product[], drafts: ProductDraft[], mode: I
 
   let added = 0
   let updated = 0
+  const touched = new Set<number>()
   for (const d of drafts) {
     let idx = d.barcode ? byCode.get(d.barcode) : undefined
     if (idx === undefined) {
@@ -295,8 +300,9 @@ export function applyImport(existing: Product[], drafts: ProductDraft[], mode: I
       byName.set(normalizeText(p.name), products.length - 1)
       added++
     }
+    touched.add(idx ?? products.length - 1)
   }
-  return { products, added, updated }
+  return { products, added, updated, changed: [...touched].map((i) => products[i]) }
 }
 
 // ---------- Hojas de exportación (también las usa el visor) ----------
@@ -475,9 +481,9 @@ export function templateSheet(): SheetData {
       format: h.startsWith('Precio') ? ('money' as const) : ('text' as const),
     })),
     rows: [
-      ['7801234500017', 'Coca-Cola 1.5L', 'Bebidas', 1290, 1990, 24, 'Alta', 'un', ''],
+      ['7801234500013', 'Coca-Cola 1.5L', 'Bebidas', 1290, 1990, 24, 'Alta', 'un', ''],
       ['', 'Pan Hallulla', 'Panadería', 1500, 2400, 20, 'Alta', 'kg', ''],
-      ['7801234500024', 'Lentejas 1kg', '', 1890, 2690, 6, 'Baja', 'un', 2],
+      ['7801234500020', 'Lentejas 1kg', '', 1890, 2690, 6, 'Baja', 'un', 2],
     ],
   }
 }

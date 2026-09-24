@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   AlertTriangle,
+  ClipboardList,
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
@@ -19,6 +20,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { axisProps, CHART, ChartTooltip, Legend } from '../components/charts'
+import { OrderModal } from '../components/OrderModal'
 import { ConfirmDialog } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState, Segmented, StockBadge } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
@@ -41,6 +43,7 @@ import { useActions, useData, useDerived } from '../store/AppStore'
 export default function Dashboard() {
   const { products, sales, expenses, settings, isDemo } = useData()
   const { stockInfo } = useDerived()
+  const [orderOpen, setOrderOpen] = useState(false)
   const now = useMemo(() => new Date(), [sales, expenses]) // se recalcula con cada venta
 
   const today = dayKey(now)
@@ -146,12 +149,18 @@ export default function Dashboard() {
           subtitle="El umbral cambia según la rotación y la velocidad real de venta de cada producto"
           actions={
             alerts.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => navigate('productos', { filtro: 'critico' })}>
-                Ver todos <ArrowRight />
-              </Button>
+              <>
+                <Button size="sm" variant="primary" onClick={() => setOrderOpen(true)}>
+                  <ClipboardList /> Armar pedido
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => navigate('productos', { filtro: 'critico' })}>
+                  Ver todos <ArrowRight />
+                </Button>
+              </>
             )
           }
         />
+        <OrderModal open={orderOpen} onClose={() => setOrderOpen(false)} />
         {alerts.length === 0 ? (
           <EmptyState icon={<Sparkles />} title="Todo con stock suficiente" />
         ) : (

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Boxes,
+  Camera,
+  CameraOff,
   LayoutGrid,
   PackagePlus,
   Pencil,
@@ -12,10 +14,14 @@ import {
   Rows3,
   Search,
   Sparkles,
+  Tag,
   Trash2,
+  Truck,
+  Undo2,
   Wand2,
   X,
 } from 'lucide-react'
+import { LabelsModal } from '../components/LabelsModal'
 import { ProductForm } from '../components/ProductForm'
 import { StockAdjustModal } from '../components/StockAdjustModal'
 import { ConfirmDialog, Modal } from '../components/ui/Modal'
@@ -25,11 +31,14 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { inventoryValue, marginPct, slowMovers } from '../lib/analytics'
 import { allCategories, inferCategory } from '../lib/categories'
+import { beepError, beepOk } from '../lib/sound'
 import { describeThreshold, isAlert } from '../lib/stock'
 import { readPref, writePref } from '../lib/storage'
 import { cn, formatCLP, formatInt, formatPct, formatQty, normalizeText } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { ROTATIONS, type Product, type Rotation } from '../types'
+
+const CameraScanner = lazy(() => import('../components/CameraScanner'))
 
 type StatusFilter = 'todos' | 'alerta' | 'agotado' | 'lentos'
 type SortKey = 'name' | 'category' | 'cost' | 'price' | 'margin' | 'stock'
@@ -65,11 +74,42 @@ export default function Inventory({ filter }: { filter: string | null }) {
   useEffect(() => writePref('invView', view), [view])
   useEffect(() => setLimit(PAGE), [query, category, status, rotation, sort])
 
+  // Recepción de mercadería: cada escaneo suma 1 al stock
+  const [receiving, setReceiving] = useState(false)
+  const [received, setReceived] = useState<{ id: string; qty: number }[]>([])
+  const [labelsOpen, setLabelsOpen] = useState(false)
+
+  const receive = (code: string) => {
+    const clean = code.trim()
+    const p = products.find((x) => x.barcode === clean) ?? products.find((x) => x.barcode && x.barcode.replace(/^0+/, '') === clean.replace(/^0+/, ''))
+    if (!p) {
+      beepError()
+      setCreating(clean)
+      return
+    }
+    if (p.unit === 'kg') {
+      // A granel hay que decir cuántos kilos llegaron
+      setAdjusting(p)
+      return
+    }
+    actions.adjustStock(p.id, 'add', 1)
+    beepOk()
+    setReceived((list) => [{ id: p.id, qty: (list.find((r) => r.id === p.id)?.qty ?? 0) + 1 }, ...list.filter((r) => r.id !== p.id)])
+  }
+
+  const undoLast = () => {
+    const last = received[0]
+    if (!last) return
+    actions.adjustStock(last.id, 'remove', 1)
+    setReceived((list) => (last.qty > 1 ? [{ ...last, qty: last.qty - 1 }, ...list.slice(1)] : list.slice(1)))
+  }
+
   // Escanear en esta pantalla abre el producto (o crea uno nuevo con ese código)
-  const modalOpen = Boolean(editing || creating !== null || adjusting || deleting || classifying)
+  const modalOpen = Boolean(editing || creating !== null || adjusting || deleting || classifying || labelsOpen)
   useBarcodeScanner({
     enabled: !modalOpen,
     onScan: (code) => {
+      if (receiving) return receive(code)
       const p = products.find((x) => x.barcode === code)
       if (p) setEditing(p)
       else setCreating(code)
@@ -143,8 +183,25 @@ export default function Inventory({ filter }: { filter: string | null }) {
   const effectiveView = isMobile ? 'cards' : view
   const shown = rows.slice(0, limit)
 
+  const receivedUnits = received.reduce((a, r) => a + r.qty, 0)
+
   return (
     <div className="space-y-4">
+      {receiving && (
+        <ReceivingPanel
+          units={receivedUnits}
+          items={received.map((r) => ({ ...r, product: products.find((p) => p.id === r.id) })).filter((r) => r.product)}
+          onScan={receive}
+          onUndo={undoLast}
+          onClose={() => {
+            setReceiving(false)
+            if (receivedUnits) toast.success(`Recepción terminada: ${receivedUnits} unidades sumadas al stock`)
+            setReceived([])
+          }}
+          paused={modalOpen}
+        />
+      )}
+
       {/* Resumen */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MiniStat label="Productos" value={formatInt(products.length)} sub={`${formatInt(counts.size)} categorías`} />
@@ -165,7 +222,8 @@ export default function Inventory({ filter }: { filter: string | null }) {
         {/* Barra de filtros */}
         <div className="space-y-3 border-b border-line p-3 sm:p-4">
           <div className="flex flex-wrap gap-2">
-            <div className="relative min-w-52 flex-1">
+            {/* El buscador ocupa su propia fila salvo en pantallas muy anchas */}
+            <div className="relative min-w-52 flex-1 basis-full 2xl:basis-0">
               <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-subtle" />
               <Input
                 value={query}
@@ -175,11 +233,22 @@ export default function Inventory({ filter }: { filter: string | null }) {
                 aria-label="Buscar productos"
               />
             </div>
+            <Button
+              variant={receiving ? 'primary' : 'outline'}
+              onClick={() => setReceiving((r) => !r)}
+              title="Escanea lo que llegó del proveedor: cada escaneo suma 1 al stock"
+            >
+              <Truck /> <span className="hidden sm:inline">Recibir mercadería</span>
+            </Button>
+            <Button variant="outline" onClick={() => setLabelsOpen(true)} title="Imprimir etiquetas con código de barras">
+              <Tag /> <span className="hidden sm:inline">Etiquetas</span>
+            </Button>
             <Button variant="outline" onClick={() => setClassifying(true)} title="Asigna categorías automáticamente según el nombre">
               <Wand2 /> <span className="hidden sm:inline">Auto-clasificar</span>
             </Button>
             <Button variant="primary" onClick={() => setCreating('')}>
-              <Plus /> Nuevo producto
+              <Plus /> <span className="sm:hidden">Nuevo</span>
+              <span className="hidden sm:inline">Nuevo producto</span>
             </Button>
           </div>
 
@@ -302,14 +371,17 @@ export default function Inventory({ filter }: { filter: string | null }) {
                   const m = marginPct(p.cost, p.price)
                   return (
                     <tr key={p.id} className="hover:bg-surface-2/50">
-                      <td className="max-w-72 py-2.5 pr-3 pl-4">
-                        <p className="truncate font-semibold" title={p.name}>
-                          {p.name}
-                        </p>
-                        <p className="mt-0.5 flex items-center gap-2 text-xs text-subtle">
-                          <span className="font-mono">{p.barcode || 'sin código'}</span>
-                          <RotationBadge r={p.rotation} />
-                        </p>
+                      <td className="py-2.5 pr-3 pl-4">
+                        {/* max-width no funciona en celdas de tabla: se limita el contenido */}
+                        <div className="w-48 2xl:w-80">
+                          <p className="truncate font-semibold" title={p.name}>
+                            {p.name}
+                          </p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-subtle">
+                            <span className="font-mono">{p.barcode || 'sin código'}</span>
+                            <RotationBadge r={p.rotation} />
+                          </p>
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <select
@@ -436,7 +508,81 @@ export default function Inventory({ filter }: { filter: string | null }) {
         Se eliminará <strong className="text-fg">{deleting?.name}</strong> del inventario. Las ventas pasadas se conservan en los reportes.
       </ConfirmDialog>
       <AutoClassifyModal open={classifying} onClose={() => setClassifying(false)} />
+      <LabelsModal open={labelsOpen} onClose={() => setLabelsOpen(false)} preselect={status === 'todos' && !query ? [] : rows.map((p) => p.id)} />
     </div>
+  )
+}
+
+// ---------- Recepción de mercadería ----------
+
+function ReceivingPanel({
+  units,
+  items,
+  onScan,
+  onUndo,
+  onClose,
+  paused,
+}: {
+  units: number
+  items: { id: string; qty: number; product?: Product }[]
+  onScan: (code: string) => void
+  onUndo: () => void
+  onClose: () => void
+  paused: boolean
+}) {
+  const [camera, setCamera] = useState(false)
+  return (
+    <Card className="border-brand/60 ring-1 ring-brand/40">
+      <div className="flex flex-wrap items-start gap-3 p-4 sm:p-5">
+        <span className="grid size-10 place-items-center rounded-xl bg-brand text-on-brand">
+          <Truck className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold">Recibiendo mercadería</h2>
+          <p className="text-sm text-muted">
+            Escanea cada unidad que llegó (pistola o cámara): se suma 1 al stock. Si un código no existe, se abre el formulario para
+            crearlo.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant={camera ? 'primary' : 'outline'} onClick={() => setCamera((c) => !c)}>
+            {camera ? <CameraOff /> : <Camera />} {camera ? 'Apagar cámara' : 'Cámara'}
+          </Button>
+          <Button variant="outline" onClick={onUndo} disabled={!units}>
+            <Undo2 /> Deshacer último
+          </Button>
+          <Button variant="primary" onClick={onClose}>
+            Terminar
+          </Button>
+        </div>
+      </div>
+      {camera && !paused && (
+        <div className="px-4 pb-4 sm:px-5">
+          <Suspense fallback={<div className="aspect-[4/3] max-w-md animate-pulse rounded-2xl bg-surface-2" />}>
+            <CameraScanner className="w-full max-w-md" onDetected={onScan} onClose={() => setCamera(false)} />
+          </Suspense>
+        </div>
+      )}
+      <div className="border-t border-line px-4 py-3 sm:px-5">
+        <p className="text-sm font-semibold">
+          {units} {units === 1 ? 'unidad recibida' : 'unidades recibidas'} · {items.length} {items.length === 1 ? 'producto' : 'productos'}
+        </p>
+        {items.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {items.slice(0, 8).map((r, i) => (
+              <li
+                key={r.id}
+                className={cn('flex items-center gap-2 rounded-xl border border-line px-3 py-1.5 text-sm', i === 0 && 'animate-flash border-brand')}
+              >
+                <span className="max-w-48 truncate font-medium">{r.product!.name}</span>
+                <Badge tone="brand">+{r.qty}</Badge>
+                <span className="tabular text-xs text-subtle">stock {formatQty(r.product!.stock, r.product!.unit)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   )
 }
 

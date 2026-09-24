@@ -206,6 +206,41 @@
   border-radius: 0.75rem;
 }
 
+/* Hoja de etiquetas: solo existe mientras se imprime */
+.print-sheet {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 10.7mm 7mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > :not(.print-sheet) {
+    display: none !important;
+  }
+  .print-sheet {
+    display: block;
+    color: #000;
+  }
+  .print-sheet .labels {
+    display: grid;
+    grid-template-columns: repeat(3, 63.5mm);
+    grid-auto-rows: 38.1mm;
+    column-gap: 2.5mm;
+  }
+  .print-sheet .label {
+    box-sizing: border-box;
+    padding: 2.5mm 3mm;
+    border: 0.2mm dashed #bbb; /* guía para recortar en papel normal */
+    overflow: hidden;
+    break-inside: avoid;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

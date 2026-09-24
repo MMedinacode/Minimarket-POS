@@ -1,7 +1,9 @@
 import { lazy, Suspense, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AppShell } from './components/AppShell'
+import { CloudPrompts } from './components/CloudPrompts'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { UpdatePrompt } from './components/UpdatePrompt'
 import { ToastProvider } from './components/ui/Toast'
 import { useHashRoute } from './hooks/useHashRoute'
 import { useTheme } from './hooks/useTheme'
@@ -31,28 +33,32 @@ function AuthedApp() {
   const { settings } = useData()
   const [authed, setAuthed] = useState(hasValidSession)
 
-  if (!authed) {
-    return <Login businessName={settings.businessName} theme={theme} onToggleTheme={toggle} onSuccess={() => setAuthed(true)} />
-  }
-
   const logout = () => {
     endSession()
     setAuthed(false)
   }
 
   return (
-    <AppShell route={route} onNavigate={(r) => navigate(r)} theme={theme} onToggleTheme={toggle} onLogout={logout}>
-      <ErrorBoundary resetKey={route}>
-        <Suspense fallback={<PageFallback />}>
-          {route === 'inicio' && <Dashboard />}
-          {route === 'vender' && <POS />}
-          {route === 'productos' && <Inventory filter={params.get('filtro')} />}
-          {route === 'caja' && <Cash />}
-          {route === 'excel' && <ExcelPage />}
-          {route === 'ajustes' && <SettingsPage onLogout={logout} />}
-        </Suspense>
-      </ErrorBoundary>
-    </AppShell>
+    <>
+      {authed ? (
+        <AppShell route={route} onNavigate={(r) => navigate(r)} theme={theme} onToggleTheme={toggle} onLogout={logout}>
+          <ErrorBoundary resetKey={route}>
+            <Suspense fallback={<PageFallback />}>
+              {route === 'inicio' && <Dashboard />}
+              {route === 'vender' && <POS />}
+              {route === 'productos' && <Inventory filter={params.get('filtro')} />}
+              {route === 'caja' && <Cash />}
+              {route === 'excel' && <ExcelPage />}
+              {route === 'ajustes' && <SettingsPage onLogout={logout} />}
+            </Suspense>
+          </ErrorBoundary>
+        </AppShell>
+      ) : (
+        <Login businessName={settings.businessName} theme={theme} onToggleTheme={toggle} onSuccess={() => setAuthed(true)} />
+      )}
+      <CloudPrompts />
+      <UpdatePrompt />
+    </>
   )
 }
 

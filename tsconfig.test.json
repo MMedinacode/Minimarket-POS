@@ -26,6 +26,7 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/lib/vendor.d.ts"
   ]
 }

@@ -15,6 +15,7 @@ import type { Route } from '../hooks/useHashRoute'
 import { isAlert } from '../lib/stock'
 import { cn, formatDateLong, formatTime } from '../lib/utils'
 import { useData, useDerived } from '../store/AppStore'
+import { SyncBadge } from './SyncBadge'
 import { Button } from './ui/primitives'
 
 const NAV: { route: Route; label: string; short: string; icon: typeof Store }[] = [
@@ -120,6 +121,7 @@ export function AppShell({ route, onNavigate, theme, onToggleTheme, onLogout, ch
           <p className="truncate font-bold">{settings.businessName}</p>
         </div>
         <h1 className="hidden flex-1 text-lg font-bold lg:block">{NAV.find((n) => n.route === route)?.label}</h1>
+        <SyncBadge />
         <Clock />
         {themeButton}
         <Button

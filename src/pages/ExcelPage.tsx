@@ -33,7 +33,7 @@ import { cn, formatCLP, formatInt, formatPct, normalizeText } from '../lib/utils
 import { useActions, useData } from '../store/AppStore'
 
 const COLUMN_HELP: { col: string; desc: string; example: string; required?: boolean }[] = [
-  { col: 'CodigoBarras', desc: 'Código EAN del producto. Vacío para productos a granel.', example: '7801234500017' },
+  { col: 'CodigoBarras', desc: 'Código EAN del producto. Vacío para productos a granel.', example: '7801234500013' },
   { col: 'Nombre', desc: 'Nombre como lo buscará el cajero.', example: 'Coca-Cola 1.5L', required: true },
   { col: 'Categoria', desc: 'Si se deja vacía, se asigna sola según el nombre.', example: 'Bebidas' },
   { col: 'PrecioCosto', desc: 'Lo que te cuesta a ti (sin puntos o con $1.290).', example: '1290' },
@@ -234,7 +234,10 @@ function ImportPreview({ fileName, sheetName, result, onClose }: { fileName: str
       mode,
     )
     if (isDemo && clearDemo) actions.endDemo(false)
-    actions.setProducts(outcome.products)
+    // "Reemplazar" manda el inventario completo; "actualizar" solo lo que venía en el Excel
+    // (así no se borra un producto que otro dispositivo acaba de crear)
+    if (mode === 'replace' || (isDemo && clearDemo)) actions.setProducts(outcome.products)
+    else actions.upsertProducts(outcome.changed)
     toast.success(
       mode === 'replace'
         ? `Inventario reemplazado: ${outcome.added} productos`

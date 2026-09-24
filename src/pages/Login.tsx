@@ -1,5 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Eye, EyeOff, Lock, Moon, Store, Sun } from 'lucide-react'
+import { Cloud, Eye, EyeOff, Lock, Moon, Store, Sun } from 'lucide-react'
+import { AccountPanel } from '../components/AccountPanel'
+import { Modal } from '../components/ui/Modal'
+import { useCloud } from '../store/AppStore'
 import {
   clearFailedAttempts,
   defaultPasswordHint,
@@ -25,6 +28,8 @@ export default function Login({ businessName, theme, onToggleTheme, onSuccess }:
   const [error, setError] = useState('')
   const [lockMs, setLockMs] = useState(lockedForMs)
   const [shake, setShake] = useState(false)
+  const cloud = useCloud()
+  const [accountOpen, setAccountOpen] = useState(false)
 
   // Cuenta regresiva cuando está bloqueado por intentos fallidos
   useEffect(() => {
@@ -133,7 +138,35 @@ export default function Login({ businessName, theme, onToggleTheme, onSuccess }:
             Cámbiala en <strong>Ajustes</strong> después de entrar.
           </p>
         )}
+
+        {cloud.enabled && !cloud.user && (
+          <>
+            <div className="my-5 flex items-center gap-3 text-xs text-subtle">
+              <span className="h-px flex-1 bg-line" /> o <span className="h-px flex-1 bg-line" />
+            </div>
+            <Button variant="outline" className="w-full" onClick={() => setAccountOpen(true)}>
+              <Cloud /> Entrar con mi cuenta
+            </Button>
+            <p className="mt-2 text-center text-xs text-subtle">Para usar los mismos datos en el PC y el celular</p>
+          </>
+        )}
+        {cloud.user && (
+          <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-subtle">
+            <Cloud className="size-3.5" /> Cuenta: {cloud.user.email}
+          </p>
+        )}
       </form>
+
+      <Modal open={accountOpen} onClose={() => setAccountOpen(false)} size="sm" title="Tu cuenta">
+        <AccountPanel
+          onSignedIn={() => {
+            setAccountOpen(false)
+            clearFailedAttempts()
+            startSession()
+            onSuccess()
+          }}
+        />
+      </Modal>
     </div>
   )
 }

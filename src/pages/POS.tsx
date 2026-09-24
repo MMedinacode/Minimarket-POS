@@ -12,6 +12,7 @@ import {
   Plus,
   ScanBarcode,
   Search,
+  PenLine,
   ShoppingCart,
   Trash2,
   X,
@@ -24,7 +25,7 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { beepError, beepOk, chaChing } from '../lib/sound'
 import { readPref, writePref } from '../lib/storage'
-import { cn, formatCLP, formatQty, normalizeText, parseLocaleNumber, roundQty } from '../lib/utils'
+import { cn, formatCLP, formatQty, normalizeText, parseLocaleNumber, roundQty, uid } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { PAYMENT_METHODS, type PaymentMethod, type Product, type Sale, type SaleItem } from '../types'
 
@@ -33,6 +34,26 @@ const CameraScanner = lazy(() => import('../components/CameraScanner'))
 interface CartLine {
   productId: string
   qty: number
+  /** Venta libre: algo que no está en el inventario (se cobra un monto y listo) */
+  custom?: { name: string; price: number }
+}
+
+/** Producto "de mentira" para mostrar una línea de venta libre como las demás */
+function customProduct(l: CartLine): Product {
+  return {
+    id: l.productId,
+    barcode: '',
+    name: l.custom!.name,
+    category: 'Venta libre',
+    cost: 0,
+    price: l.custom!.price,
+    stock: Number.POSITIVE_INFINITY,
+    unit: 'un',
+    rotation: 'Baja',
+    minStock: null,
+    createdAt: '',
+    updatedAt: '',
+  }
 }
 
 const PAYMENT_ICONS: Record<PaymentMethod, typeof Banknote> = {
@@ -74,6 +95,7 @@ export default function POS() {
   const [createFor, setCreateFor] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [customOpen, setCustomOpen] = useState(false)
   const [flash, setFlash] = useState<{ id: string; n: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -93,7 +115,10 @@ export default function POS() {
 
   // Líneas del carrito con datos actuales del producto (si se borró, se descarta)
   const lines = useMemo(
-    () => cart.map((l) => ({ ...l, product: byId.get(l.productId) })).filter((l): l is CartLine & { product: Product } => Boolean(l.product)),
+    () =>
+      cart
+        .map((l) => ({ ...l, product: l.custom ? customProduct(l) : byId.get(l.productId) }))
+        .filter((l): l is CartLine & { product: Product } => Boolean(l.product)),
     [cart, byId],
   )
   const total = lines.reduce((a, l) => a + Math.round(l.qty * l.product.price), 0)
@@ -156,12 +181,13 @@ export default function POS() {
   )
 
   // Pistola lectora: siempre escuchando mientras no haya formularios abiertos
-  useBarcodeScanner({ onScan: handleCode, enabled: createFor === null && !weightFor && !confirmClear })
+  useBarcodeScanner({ onScan: handleCode, enabled: createFor === null && !weightFor && !confirmClear && !customOpen })
 
   // ---------- Carrito ----------
 
   const setQty = (id: string, qty: number) => {
-    const p = byId.get(id)
+    const line = cart.find((l) => l.productId === id)
+    const p = line?.custom ? customProduct(line) : byId.get(id)
     if (!p) return
     const q = roundQty(qty, p.unit)
     if (q <= 0) {
@@ -195,8 +221,9 @@ export default function POS() {
         return
       }
     }
-    const items: SaleItem[] = lines.map(({ product: p, qty }) => ({
-      productId: p.id,
+    const items: SaleItem[] = lines.map(({ product: p, qty, custom }) => ({
+      // Las ventas libres se agrupan por descripción en los reportes y no tocan el stock
+      productId: custom ? `libre:${normalizeText(p.name)}` : p.id,
       barcode: p.barcode,
       name: p.name,
       category: p.category,
@@ -218,6 +245,10 @@ export default function POS() {
   // Atajos: F2 buscar · F9 cobrar · Esc limpiar búsqueda
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F4') {
+        e.preventDefault()
+        setCustomOpen(true)
+      }
       if (e.key === 'F2') {
         e.preventDefault()
         searchRef.current?.focus()
@@ -475,6 +506,10 @@ export default function POS() {
             {cameraOn ? <CameraOff /> : <Camera />}
             <span className="hidden sm:inline">{cameraOn ? 'Apagar cámara' : 'Cámara'}</span>
           </Button>
+          <Button variant="outline" className="h-12" onClick={() => setCustomOpen(true)} title="Cobrar algo que no está en el inventario (F4)">
+            <PenLine />
+            <span className="hidden sm:inline">Monto libre</span>
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 rounded-xl bg-ok-soft px-3 py-2 text-xs font-medium text-ok-ink">
@@ -634,7 +669,99 @@ export default function POS() {
       >
         Se quitarán todos los productos de la venta actual. El stock no se modifica.
       </ConfirmDialog>
+
+      <CustomItemModal
+        open={customOpen}
+        onClose={() => setCustomOpen(false)}
+        onAdd={(name, price, qty) => {
+          setCart((c) => [...c, { productId: `libre-${uid()}`, qty, custom: { name, price } }])
+          beepOk()
+          setCustomOpen(false)
+        }}
+      />
     </div>
+  )
+}
+
+// ---------- Venta libre (monto sin producto registrado) ----------
+
+function CustomItemModal({
+  open,
+  onClose,
+  onAdd,
+}: {
+  open: boolean
+  onClose: () => void
+  onAdd: (name: string, price: number, qty: number) => void
+}) {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState<number | null>(null)
+  const [qty, setQty] = useState(1)
+  useEffect(() => {
+    if (open) {
+      setName('')
+      setPrice(null)
+      setQty(1)
+    }
+  }, [open])
+  if (!open) return null
+  const ok = Boolean(price && price > 0)
+  const submit = () => ok && onAdd(name.trim() || 'Varios', price!, qty)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title="Monto libre"
+      description="Para cobrar algo que no está en el inventario. No descuenta stock."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={!ok}>
+            Agregar {ok && formatCLP(price! * qty)}
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <div>
+          <label htmlFor="free-amount" className="mb-1.5 block text-sm font-medium text-muted">
+            Precio
+          </label>
+          <MoneyInput id="free-amount" value={price} onValueChange={setPrice} autoFocus className="h-14 text-2xl font-bold" placeholder="0" />
+        </div>
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <div>
+            <label htmlFor="free-name" className="mb-1.5 block text-sm font-medium text-muted">
+              Descripción (opcional)
+            </label>
+            <Input id="free-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Lápiz pasta, Regalo" maxLength={60} />
+          </div>
+          <div>
+            <span className="mb-1.5 block text-sm font-medium text-muted">Cantidad</span>
+            <div className="flex h-11 items-center rounded-xl border border-line-strong">
+              <button type="button" className="grid size-10 place-items-center" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Menos">
+                <Minus className="size-4" />
+              </button>
+              <span className="tabular w-8 text-center font-bold">{qty}</span>
+              <button type="button" className="grid size-10 place-items-center" onClick={() => setQty((q) => q + 1)} aria-label="Más">
+                <Plus className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <button type="submit" className="hidden" />
+      </form>
+    </Modal>
   )
 }
 

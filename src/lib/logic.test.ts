@@ -5,7 +5,7 @@ import type { AppData, Product, Sale } from '../types'
 import { dailySeries, marginPct, salesByHour, slowMovers, summarizeDay, topProducts } from './analytics'
 import { allCategories, inferCategory, matchCategory } from './categories'
 import { applyImport, buildSheets, parseInventoryRows } from './excel-model'
-import { buildVelocityMap, getStockInfo } from './stock'
+import { buildVelocityMap, getStockInfo, suggestOrderQty } from './stock'
 import { dayKey, formatCLP, parseLocaleNumber } from './utils'
 
 const product = (over: Partial<Product> = {}): Product => ({
@@ -102,6 +102,19 @@ describe('stock crítico diferenciado', () => {
     expect(info.threshold).toBe(3)
     expect(info.status).toBe('ok')
   })
+  it('sugiere cuánto pedir al proveedor', () => {
+    // Alta: umbral 10 → objetivo 20; hay 4 → pedir 16
+    const alta = product({ rotation: 'Alta', stock: 4 })
+    expect(suggestOrderQty(alta, getStockInfo(alta, s, 0))).toBe(16)
+    // Se venden 5 al día → 7 días = 35 → pedir 31
+    expect(suggestOrderQty(alta, getStockInfo(alta, s, 5))).toBe(31)
+    // Granel: medio kilo hacia arriba
+    const pan = product({ unit: 'kg', rotation: 'Media', stock: 1.3 })
+    expect(suggestOrderQty(pan, getStockInfo(pan, s, 0))).toBe(9)
+    // Con stock de sobra no se pide nada
+    const lleno = product({ stock: 50 })
+    expect(suggestOrderQty(lleno, getStockInfo(lleno, s, 0))).toBe(0)
+  })
   it('calcula la velocidad de venta ignorando ventas anuladas', () => {
     // Ventas de hace 1 hora: si se crean "ahora", pueden quedar 1 ms después de `now`
     const hourAgo = new Date(Date.now() - 3_600_000).toISOString()
@@ -186,14 +199,14 @@ describe('Excel: importación', () => {
       ['Mi planilla de inventario'],
       [],
       ['Código de Barras', 'Producto', 'Categoría', 'Precio Costo', 'Precio Venta', 'Stock', 'Rotación (Alta/Media/Baja)'],
-      [7801234500017, 'Coca-Cola 1.5L', 'bebidas', '$1.290', '$1.990', 24, 'alta'],
+      [7801234500013, 'Coca-Cola 1.5L', 'bebidas', '$1.290', '$1.990', 24, 'alta'],
       ['', 'Lentejas 1kg', '', 1890, 2690, '6', 'B'],
     ]
     const r = parseInventoryRows(aoa, known)
     expect(r.missingColumns).toEqual([])
     expect(r.headerRow).toBe(3)
     expect(r.rows).toHaveLength(2)
-    expect(r.rows[0].draft).toMatchObject({ barcode: '7801234500017', category: 'Bebidas', cost: 1290, price: 1990, stock: 24, rotation: 'Alta' })
+    expect(r.rows[0].draft).toMatchObject({ barcode: '7801234500013', category: 'Bebidas', cost: 1290, price: 1990, stock: 24, rotation: 'Alta' })
     expect(r.rows[1].draft).toMatchObject({ category: 'Abarrotes', rotation: 'Baja', stock: 6 })
     expect(r.rows[1].warnings.join()).toMatch(/automáticamente/)
   })

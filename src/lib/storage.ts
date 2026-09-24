@@ -56,16 +56,6 @@ async function idbPut(entries: [Key, unknown][]): Promise<void> {
   })
 }
 
-async function idbClear(): Promise<void> {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).clear()
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error)
-  })
-}
-
 let useFallback = false
 
 /** Lee los datos guardados. Devuelve null si es la primera vez que se abre la app. */
@@ -121,12 +111,46 @@ export async function saveData(data: AppData): Promise<boolean> {
 
 export async function clearData(): Promise<void> {
   lastSaved.clear()
+  await kvDelete([...KEYS])
+}
+
+// ---------- Clave-valor genérico (copia local de la cuenta en la nube) ----------
+
+export async function kvGet<T>(key: string): Promise<T | undefined> {
   try {
-    await idbClear()
+    const db = await openDb()
+    return await new Promise<T | undefined>((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key)
+      req.onsuccess = () => resolve(req.result as T | undefined)
+      req.onerror = () => reject(req.error)
+    })
   } catch {
-    /* ignorar */
+    const s = localStorage.getItem(LS_PREFIX + key)
+    return s === null ? undefined : (JSON.parse(s) as T)
   }
-  for (const k of KEYS) localStorage.removeItem(LS_PREFIX + k)
+}
+
+export async function kvSet(entries: [string, unknown][]): Promise<void> {
+  try {
+    await idbPut(entries as [Key, unknown][])
+  } catch {
+    for (const [k, v] of entries) localStorage.setItem(LS_PREFIX + k, JSON.stringify(v))
+  }
+}
+
+export async function kvDelete(keys: string[]): Promise<void> {
+  try {
+    const db = await openDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite')
+      for (const k of keys) tx.objectStore(STORE).delete(k)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch {
+    /* sin IndexedDB */
+  }
+  for (const k of keys) localStorage.removeItem(LS_PREFIX + k)
 }
 
 /** Pide al navegador no borrar los datos cuando falte espacio (importante en una caja) */

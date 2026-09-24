@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/* El modo oscuro se activa con la clase .dark en <html> (toggle manual) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Colores semánticos: cada utilidad (bg-surface, text-muted...) apunta a una
+   variable que cambia sola entre modo claro y oscuro. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-on-brand: var(--on-brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-info-soft: var(--info-soft);
+  --color-info-ink: var(--info-ink);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --animate-fade-in: fade-in 0.15s ease-out;
+  --animate-pop-in: pop-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --animate-slide-up: slide-up 0.22s ease-out;
+  --animate-flash: flash 0.6s ease-out;
+  --animate-shake: shake 0.35s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes flash {
+  0% { background-color: var(--brand-soft); }
+  100% { background-color: transparent; }
+}
+
+:root {
+  color-scheme: light;
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --line: #e3e6eb;
+  --line-strong: #cbd2db;
+  --fg: #0f172a;
+  --fg-muted: #475569;
+  --fg-subtle: #5f6d80;
+
+  --brand: #047857;
+  --brand-hover: #065f46;
+  --on-brand: #ffffff;
+  --brand-soft: #d9f5ea;
+  --brand-ink: #047857;
+
+  --danger: #d03b3b;
+  --danger-soft: #fdecec;
+  --danger-ink: #b42323;
+  --warn: #fab219;
+  --warn-soft: #fef5dc;
+  --warn-ink: #8a4b04;
+  --ok: #0ca30c;
+  --ok-soft: #e5f6e5;
+  --ok-ink: #106b10;
+  --info-soft: #e6f0fc;
+  --info-ink: #1c5cab;
+
+  /* Paleta de gráficos validada (azul, naranjo, aqua) */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-grid: #e8ebef;
+  --chart-axis: #5f6d80;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --surface: #131a22;
+  --surface-2: #1b2430;
+  --line: #243040;
+  --line-strong: #34445a;
+  --fg: #f1f5f9;
+  --fg-muted: #b3c0cf;
+  --fg-subtle: #8795a8;
+
+  --brand: #10b981;
+  --brand-hover: #34d399;
+  --on-brand: #032b1f;
+  --brand-soft: #0f3a2e;
+  --brand-ink: #4ade9f;
+
+  --danger: #d03b3b;
+  --danger-soft: #3a1717;
+  --danger-ink: #ff9b9b;
+  --warn: #fab219;
+  --warn-soft: #3a2a08;
+  --warn-ink: #ffd06b;
+  --ok: #0ca30c;
+  --ok-soft: #10301a;
+  --ok-ink: #6ee08a;
+  --info-soft: #132a45;
+  --info-ink: #8fc0f5;
+
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-grid: #1f2a37;
+  --chart-axis: #8795a8;
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 100dvh;
+  }
+  /* Quita las flechitas de los input number: estorban en pantallas táctiles */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  /* Los hijos de un grid pueden achicarse bajo el ancho de su contenido.
+     Sin esto, una tabla ancha o un gráfico estira la columna y en el celular
+     la página se ve "alejada". :where() deja que las utilidades lo sobrescriban. */
+  :where(.grid) > * {
+    min-width: 0;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Vista del escáner de cámara (html5-qrcode inyecta su propio <video>) */
+.scanner-view video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  border-radius: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

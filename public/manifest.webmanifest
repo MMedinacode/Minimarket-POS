@@ -1,0 +1,12 @@
+{
+  "name": "Caja Minimarket",
+  "short_name": "Caja",
+  "description": "Caja e inventario para minimarkets",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#047857",
+  "lang": "es-CL",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

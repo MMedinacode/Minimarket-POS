@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es-CL">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Sistema de caja e inventario para minimarkets: ventas con lector de código de barras, stock crítico, gastos y Excel." />
+    <meta name="theme-color" content="#047857" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Caja Minimarket</title>
+    <script>
+      // Aplica el tema antes de pintar para evitar el parpadeo blanco
+      try {
+        var t = localStorage.getItem('mm-pos:theme')
+        if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        if (t === 'dark') document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="./assets/index-o5jpCwVe.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BEz2JU8U.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

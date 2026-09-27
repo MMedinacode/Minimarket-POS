@@ -10,11 +10,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Caja Minimarket</title>
     <script>
-      // Aplica el tema antes de pintar para evitar el parpadeo blanco
+      // Aplica tema y tamaño de letra antes de pintar (evita el parpadeo)
       try {
         var t = localStorage.getItem('mm-pos:theme')
         if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
         if (t === 'dark') document.documentElement.classList.add('dark')
+        if (localStorage.getItem('mm-pos:textSize') === 'grande') document.documentElement.classList.add('text-grande')
       } catch (e) {}
     </script>
   </head>

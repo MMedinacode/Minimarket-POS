@@ -2,12 +2,22 @@
 
 export type Rotation = 'Alta' | 'Media' | 'Baja'
 export const ROTATIONS: Rotation[] = ['Alta', 'Media', 'Baja']
+/** Cómo se muestra la rotación a los dueños (sin palabras técnicas) */
+export const ROTATION_LABEL: Record<Rotation, string> = {
+  Alta: 'Se vende mucho',
+  Media: 'Normal',
+  Baja: 'Se vende poco',
+}
 
 /** 'un' = se vende por unidad · 'kg' = se vende a granel por peso */
 export type Unit = 'un' | 'kg'
 
-export type PaymentMethod = 'Efectivo' | 'Débito' | 'Crédito' | 'Transferencia'
-export const PAYMENT_METHODS: PaymentMethod[] = ['Efectivo', 'Débito', 'Crédito', 'Transferencia']
+/** 'Débito' y 'Crédito' quedan solo para ventas antiguas: ahora se cobra como 'Tarjeta' */
+export type PaymentMethod = 'Efectivo' | 'Tarjeta' | 'Transferencia' | 'Débito' | 'Crédito'
+/** Medios de pago que se ofrecen al cobrar */
+export const PAYMENT_METHODS: PaymentMethod[] = ['Efectivo', 'Tarjeta', 'Transferencia']
+/** Todos, incluidos los antiguos (para sumar reportes) */
+export const ALL_PAYMENT_METHODS: PaymentMethod[] = ['Efectivo', 'Tarjeta', 'Transferencia', 'Débito', 'Crédito']
 
 export interface Product {
   id: string

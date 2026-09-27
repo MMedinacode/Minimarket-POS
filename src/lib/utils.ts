@@ -143,14 +143,3 @@ export function formatDayShort(d: Date | string): string {
   return shortDay.format(new Date(d)).replace('.', '')
 }
 
-/** Descarga un Blob como archivo */
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}

@@ -4,18 +4,18 @@ Sistema web de **caja (POS) e inventario** para minimarkets, bazares y negocios 
 Funciona en computador, tablet y celular, **también sin internet**. Con una cuenta
 (opcional), los datos se sincronizan entre todos los dispositivos y quedan respaldados en línea.
 
-🔗 **Demo en línea:** <https://mmedinacode.github.io/Minimarket-POS/> — contraseña `1234`
+🔗 **Demo en línea:** <https://mmedinacode.github.io/Minimarket-POS/> — la primera vez te pide crear tu propia clave
 
 **Qué incluye**
 
 | Módulo | Qué hace |
 |---|---|
-| 🔐 Acceso | Contraseña de la caja (bloqueo tras 5 intentos) + cuenta opcional para sincronizar, modo claro/oscuro |
-| 📊 Inicio | Ventas y ganancia neta del día, ventas por hora, top 5, menor rotación, márgenes, **armar pedido al proveedor** |
+| 🔐 Acceso | Asistente de primera vez, clave propia guardada cifrada (PBKDF2), bloqueo creciente, cuenta opcional |
+| 🏠 Inicio | Vendiste hoy, ganaste hoy, qué se está acabando y botones grandes para cada tarea |
 | 🛒 Vender | Pistola lectora (USB/Bluetooth) siempre activa, cámara del celular, búsqueda, granel (kg), **monto libre**, vuelto |
 | 📦 Productos | Categorías automáticas, stock crítico por rotación y velocidad, **recibir mercadería escaneando**, **etiquetas con código de barras** |
-| 💰 Caja y gastos | Gastos, **Ventas − Gastos = Caja neta**, efectivo esperado en el cajón, anular ventas |
-| 📗 Excel | Importar con vista previa y validación, exportar libro completo, visor tipo hoja de cálculo |
+| 💰 Caja | Vendiste − gastaste = te queda, cuánto debería haber en el cajón, anotar gastos, anular ventas |
+| ☰ Más | Reportes y gráficos, Excel, etiquetas, cuenta, ajustes, ayuda paso a paso, tema claro/oscuro y **letra grande** |
 | ☁️ Cuenta | Mismos datos en PC y celular al instante, respaldo en línea, funciona sin internet y sube los cambios después |
 
 ---
@@ -29,15 +29,14 @@ npm install
 npm run dev
 ```
 
-Abre <http://localhost:5173> y entra con la contraseña **`1234`**. La primera vez se cargan
-**datos de demostración** (68 productos y 14 días de ventas); desde el aviso azul del Inicio
-se borran cuando quieras empezar de verdad.
+Abre <http://localhost:5173>. La primera vez un asistente te pide **crear tu clave**, el nombre
+del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ventas) o empezar vacío.
 
 | Comando | Para qué |
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | Pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 49 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
 | `npm run ejemplo` | Regenera `public/ejemplo-inventario.xlsx` |
 
@@ -46,7 +45,6 @@ se borran cuando quieras empezar de verdad.
 Copia `.env.example` como `.env`. Todo es opcional:
 
 ```bash
-VITE_MASTER_PASSWORD=1234                 # contraseña inicial de la caja
 VITE_BUSINESS_NAME=Minimarket Don Pepe    # nombre por defecto
 VITE_SUPABASE_URL=https://xxxx.supabase.co           # sincronización (ver sección 3)
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxx
@@ -147,81 +145,95 @@ carpeta `dist` a <https://app.netlify.com/drop>. Las variables del `.env` se agr
 
 ## 6. Manual rápido para el dueño del negocio
 
+La app tiene 5 secciones abajo (en el celular) o a la izquierda (en el computador):
+**Inicio · Vender · Productos · Caja · Más**. Dentro de **Más → Cómo se usa** está esta misma
+ayuda, paso a paso y en palabras simples.
+
 ### Primer día
-1. Entra con `1234` y cámbiala en **Ajustes → Contraseña máster**.
-2. Si vas a usar la caja en más de un equipo: **Ajustes → Crear cuenta**. En el otro equipo,
-   abre el mismo link y pulsa **Entrar con mi cuenta** con el mismo correo.
-3. Carga tus productos: **Excel → Importar**, o **Productos → Nuevo**.
+1. Abre el link. Un asistente te pide **crear tu clave** (mínimo 6 números o letras, que no sea
+   fácil como 123456), el nombre del negocio y si quieres **probar con ejemplos** o empezar vacío.
+2. Carga tus productos: **Productos → Agregar producto**, o todos juntos desde **Más → Excel y respaldo**.
+3. ¿Letra muy chica? **Más → Cómo se ve → Letra grande**.
+
+### El día a día (desde Inicio)
+- **Vender:** escanea con la pistola (sin tocar nada antes) o con la cámara, busca por nombre, o
+  toca **Otro monto** para algo que no está en la lista. Elige *Efectivo, Tarjeta o Transferencia*;
+  en efectivo toca el billete y la caja muestra el vuelto.
+- **Llegó mercadería:** escanea cada producto que llegó; cada escaneo suma 1.
+- **Anotar un gasto:** eliges en qué (proveedor, luz, bolsas…) y cuánto.
+- **Agregar un producto:** nombre, a cuánto lo vendes y cuántos tienes. Lo demás es opcional.
+- **Pedido al proveedor:** lista de lo que se está acabando con cantidades sugeridas, lista para WhatsApp.
+
+### Caja
+Muestra **cuánto vendiste, cuánto gastaste, cuánto te queda** y **cuánta plata debería haber en el
+cajón**. Si te equivocaste en una venta: *Ventas de hoy → tocar la venta → Anular venta*.
+
+### Productos
+Lista simple con "Quedan 8 · Queda poco". Filtros: *Todos · Se están acabando · Agotados*.
+En **Más opciones**: imprimir etiquetas con código de barras (para lo que no trae código),
+ordenar categorías automáticamente y Excel.
 
 ### Instalar en el celular
 Abre el link en Chrome (Android) o Safari (iPhone) → menú → **Agregar a pantalla de inicio**.
 Queda como una app y abre aunque no haya señal.
 
-### Vender
-- **Pistola lectora:** solo escanea, sin hacer clic en nada.
-- **Cámara:** botón 📷 (cambia entre cámara trasera y frontal).
-- **Sin código:** busca por nombre y Enter, o toca el producto.
-- **Monto libre (F4):** para cobrar algo que no está en el inventario ("lápiz $500").
-- **Granel:** al tocar pan, fiambre o verduras pide el peso.
-- **Cobrar (F9):** elige medio de pago; en efectivo toca el billete y aparece el vuelto.
-
-### Productos
-- **Recibir mercadería:** activa el modo y escanea cada unidad que llegó: suma 1 al stock
-  (con "Deshacer último" por si escaneaste de más).
-- **Etiquetas:** para lo que no trae código (muy común en bazares): elige los productos,
-  **Generar códigos** y **Imprimir** (hoja A4 de 21 etiquetas, tipo Avery L7160, o papel
-  normal y se recortan). Desde ahí se venden escaneando.
-- **Stock crítico:** alerta según rotación (Alta < 10, Media < 5, Baja < 2) y sube solo si algo
-  se vende más rápido de lo normal.
-- **Auto-clasificar:** propone categorías según el nombre.
-
-### Pedir al proveedor
-En **Inicio → Productos por reponer → Armar pedido**: la app sugiere cuánto pedir de cada
-producto crítico (para ~1 semana de venta), puedes ajustar las cantidades y lo mandas por
-**WhatsApp** o lo copias.
-
-### Caja
-- Registra los gastos y marca si salieron del cajón.
-- **Efectivo esperado** = ventas en efectivo − gastos pagados en efectivo.
-- Para **anular una venta**, ábrela en "Ventas del día": el stock se devuelve solo.
-
-### Respaldo
-Con cuenta, todo queda respaldado en línea automáticamente. Sin cuenta, los datos están solo
-en ese navegador: descarga el Excel seguido (**Excel → Descargar Excel actualizado**).
+### Si olvidas la clave
+- **Con cuenta:** "¿Olvidaste tu clave?" → entra con tu correo y contraseña → creas una clave nueva. No se pierde nada.
+- **Sin cuenta:** por seguridad, la única forma es borrar los datos de ese equipo (por eso conviene
+  tener cuenta o descargar el Excel seguido).
 
 ---
 
-## 7. Cómo está hecho
+## 7. Seguridad
+
+- **Sin clave por defecto:** cada dueño crea la suya en el primer inicio. Se rechazan claves
+  fáciles (123456, 111111, 121212, "password"…).
+- **La clave nunca se guarda:** solo su huella PBKDF2-SHA256 con sal aleatoria y 210.000
+  repeticiones. Las claves de la versión anterior se convierten solas al formato seguro al entrar.
+- **Bloqueo creciente:** 5 fallos → 30 s, 8 → 2 min, 10 o más → 10 min.
+- **Cuenta en la nube:** contraseña de mínimo 8 caracteres (Supabase la guarda con bcrypt), reglas
+  RLS para que cada cuenta vea solo lo suyo, y solo la *publishable key* en el navegador.
+- Crear una clave nueva con una cuenta abierta en el equipo exige confirmar la contraseña de la
+  cuenta; "Borrar todo" también cierra la cuenta en ese equipo.
+- Límite honesto: la clave protege la pantalla (que un cliente o empleado no vea las ganancias);
+  quien tenga el equipo y conocimientos técnicos podría leer los datos guardados en el navegador.
+  Para más protección: usar cuenta y bloquear la caja al alejarse (**Más → Bloquear caja**).
+
+---
+
+## 8. Cómo está hecho
 
 - **React 19 + Vite + TypeScript** estricto, **Tailwind CSS v4** (modo claro/oscuro con tokens).
 - **Supabase** (PostgreSQL + cuentas + tiempo real) para la sincronización, opcional.
 - **vite-plugin-pwa** (funciona sin internet), **Recharts**, **SheetJS**, **html5-qrcode**, **Lucide**.
 - Pruebas con **Vitest**; el SQL del servidor se prueba en **PGlite** (PostgreSQL en WebAssembly, sin Docker).
+- `CLAUDE.md` resume la arquitectura y las reglas del proyecto para seguir trabajándolo con Claude Code.
 
 ```
 supabase/schema.sql          # tablas, seguridad RLS, apply_ops y pull_changes
 src/
+├── App.tsx                  # primera vez → clave → las 5 secciones
 ├── store/
 │   ├── reducer.ts           # todas las operaciones (venta, anulación, stock…)
 │   └── AppStore.tsx         # modo local o modo cuenta, guardado automático
 ├── lib/
 │   ├── sync/                # motor de sincronización (cola, envío, descarga)
+│   ├── auth.ts              # clave de la caja (PBKDF2, bloqueo)
 │   ├── ean13.ts             # códigos de barra internos y dibujo EAN-13
-│   ├── stock.ts             # stock crítico y pedido sugerido
-│   ├── categories.ts        # clasificación automática
-│   ├── analytics.ts         # dashboard y caja
+│   ├── stock.ts             # "se está acabando" y pedido sugerido
+│   ├── categories.ts        # categorías automáticas
+│   ├── analytics.ts         # números de Inicio, Caja y Reportes
 │   ├── excel-model.ts / excel-io.ts
-│   └── storage.ts / auth.ts
+│   └── storage.ts
 ├── hooks/useBarcodeScanner.ts   # detector de pistola lectora
-├── components/              # layout, cámara, etiquetas, pedido, cuenta, UI base
-└── pages/                   # Dashboard, POS, Inventory, Cash, ExcelPage, Settings
+├── components/              # formularios, modales, cámara, etiquetas, pedido, UI base
+└── pages/                   # Setup, Login, Home, POS, Inventory, Cash, More, Reports,
+                             # ExcelPage, Settings, Account, Help
 ```
 
 ### Límites conocidos
 
-- La **contraseña de la caja** es una barrera local (para que un cliente no entre al panel);
-  la seguridad real de los datos en la nube la dan la cuenta y las reglas RLS.
 - Una cuenta = un negocio. Todavía no hay usuarios separados por empleado con permisos distintos.
-- Si dos dispositivos venden el último producto estando ambos sin internet, al sincronizar el
-  stock queda en 0 (no negativo) salvo que actives "Permitir vender sin stock".
+- Si dos equipos venden el último producto estando ambos sin internet, al sincronizar el stock
+  queda en 0 (no negativo) salvo que actives "Dejar vender aunque la caja diga que no hay".
 - Es un sistema de caja e inventario interno: no emite boletas del SII.

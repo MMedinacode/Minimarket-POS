@@ -9,7 +9,16 @@ type View = 'login' | 'signup' | 'reset' | 'sent-confirm' | 'sent-reset'
  * Iniciar sesión / crear cuenta / recuperar contraseña.
  * Se usa en Ajustes y desde la pantalla de acceso.
  */
-export function AccountPanel({ onSignedIn, initialView = 'login' }: { onSignedIn?: () => void; initialView?: 'login' | 'signup' }) {
+export function AccountPanel({
+  onSignedIn,
+  initialView = 'login',
+  loginOnly,
+}: {
+  onSignedIn?: () => void
+  initialView?: 'login' | 'signup'
+  /** Solo iniciar sesión (sin la pestaña "Crear cuenta") */
+  loginOnly?: boolean
+}) {
   const { api } = useCloud()
   const [view, setView] = useState<View>(initialView)
   const [email, setEmail] = useState('')
@@ -23,7 +32,8 @@ export function AccountPanel({ onSignedIn, initialView = 'login' }: { onSignedIn
     e.preventDefault()
     setError('')
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Escribe un correo válido')
-    if (view !== 'reset' && password.length < 6) return setError('La contraseña debe tener al menos 6 caracteres')
+    if (view === 'signup' && password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres')
+    if (view === 'login' && password.length < 6) return setError('Escribe tu contraseña')
     setBusy(true)
     try {
       if (view === 'login') {
@@ -73,7 +83,9 @@ export function AccountPanel({ onSignedIn, initialView = 'login' }: { onSignedIn
 
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
-      {view === 'reset' ? (
+      {loginOnly && view === 'login' ? (
+        <p className="text-muted">Escribe el correo y la contraseña de tu cuenta.</p>
+      ) : view === 'reset' ? (
         <button type="button" className="flex items-center gap-1 text-sm font-semibold text-muted hover:text-fg" onClick={() => setView('login')}>
           <ArrowLeft className="size-4" /> Volver
         </button>
@@ -100,7 +112,7 @@ export function AccountPanel({ onSignedIn, initialView = 'login' }: { onSignedIn
       </Field>
 
       {view !== 'reset' && (
-        <Field label="Contraseña" htmlFor="acc-pwd" hint={view === 'signup' ? 'Mínimo 6 caracteres' : undefined}>
+        <Field label="Contraseña" htmlFor="acc-pwd" hint={view === 'signup' ? 'Mínimo 8 caracteres. Que sea distinta a la clave de la caja.' : undefined}>
           <div className="relative">
             <Input
               id="acc-pwd"

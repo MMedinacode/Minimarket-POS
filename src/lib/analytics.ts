@@ -1,12 +1,9 @@
 // Cálculos del dashboard y de caja. Todo es puro (sin React) para poder testearlo.
-import { PAYMENT_METHODS, type Expense, type PaymentMethod, type Product, type Sale, type Unit } from '../types'
+import { ALL_PAYMENT_METHODS, type Expense, type PaymentMethod, type Product, type Sale, type Unit } from '../types'
 import { addDays, dayKey, formatDayShort, parseDayKey, startOfDay } from './utils'
 
 export const activeSales = (sales: Sale[]) => sales.filter((s) => !s.voided)
 
-export function saleProfit(sale: Sale): number {
-  return sale.total - sale.cost
-}
 
 // ---------- Resumen de un día ----------
 
@@ -28,7 +25,7 @@ export interface DaySummary {
 }
 
 export function summarizeDay(sales: Sale[], expenses: Expense[], key: string): DaySummary {
-  const byPayment = Object.fromEntries(PAYMENT_METHODS.map((m) => [m, 0])) as Record<PaymentMethod, number>
+  const byPayment = Object.fromEntries(ALL_PAYMENT_METHODS.map((m) => [m, 0])) as Record<PaymentMethod, number>
   let revenue = 0
   let cost = 0
   let transactions = 0

@@ -161,8 +161,8 @@ export function buildDemoHistory(products: Product[], now: Date = new Date(), da
   const weights = sellable.map((p) => popularity.get(p.id) ?? 0)
   const hours = Object.keys(HOUR_WEIGHTS).map(Number)
   const hourW = hours.map((h) => HOUR_WEIGHTS[h])
-  const payments: PaymentMethod[] = ['Efectivo', 'Débito', 'Crédito', 'Transferencia']
-  const payW = [45, 40, 5, 10]
+  const payments: PaymentMethod[] = ['Efectivo', 'Tarjeta', 'Transferencia']
+  const payW = [45, 45, 10]
 
   const sales: Sale[] = []
   const expenses: Expense[] = []

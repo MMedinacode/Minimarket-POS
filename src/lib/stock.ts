@@ -1,7 +1,7 @@
 import type { Product, Rotation, Sale, Settings, StockStatus } from '../types'
 
 /** Días de historial usados para medir qué tan rápido se vende cada producto */
-export const VELOCITY_WINDOW_DAYS = 14
+const VELOCITY_WINDOW_DAYS = 14
 
 /**
  * Unidades vendidas por día (promedio de los últimos N días) para cada producto.
@@ -96,13 +96,7 @@ export function isAlert(status: StockStatus): boolean {
 
 export const STATUS_LABEL: Record<StockStatus, string> = {
   agotado: 'Agotado',
-  critico: 'Crítico',
-  ok: 'OK',
+  critico: 'Queda poco',
+  ok: 'Bien',
 }
 
-export function describeThreshold(info: StockInfo, rotation: Rotation): string {
-  const n = Number.isInteger(info.threshold) ? info.threshold : info.threshold.toFixed(1)
-  if (info.reason === 'manual') return `Alerta bajo ${n} (mínimo manual)`
-  if (info.reason === 'velocidad') return `Alerta bajo ${n} (se vende rápido)`
-  return `Alerta bajo ${n} (rotación ${rotation.toLowerCase()})`
-}

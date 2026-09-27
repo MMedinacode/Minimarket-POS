@@ -1,28 +1,39 @@
 import { useCallback, useEffect, useState } from 'react'
 
 export type Theme = 'light' | 'dark'
-const KEY = 'mm-pos:theme'
+export type TextSize = 'normal' | 'grande'
 
-function initialTheme(): Theme {
-  // index.html ya aplicó la clase antes de pintar; la leemos de ahí
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+const THEME_KEY = 'mm-pos:theme'
+const SIZE_KEY = 'mm-pos:textSize'
+
+// index.html ya aplicó las clases antes de pintar; se leen de ahí
+const initialTheme = (): Theme => (document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+const initialSize = (): TextSize => (document.documentElement.classList.contains('text-grande') ? 'grande' : 'normal')
+
+function save(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value) // texto plano: lo lee index.html
+  } catch {
+    /* sin almacenamiento */
+  }
 }
 
-/** Tema claro/oscuro con preferencia guardada (texto plano, lo lee index.html) */
-export function useTheme() {
+/** Apariencia de la app en este dispositivo: tema claro/oscuro y tamaño de letra */
+export function useAppearance() {
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [textSize, setTextSize] = useState<TextSize>(initialSize)
 
   useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', theme === 'dark')
+    document.documentElement.classList.toggle('dark', theme === 'dark')
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0b0f14' : '#047857')
-    try {
-      localStorage.setItem(KEY, theme)
-    } catch {
-      /* sin almacenamiento */
-    }
+    save(THEME_KEY, theme)
   }, [theme])
 
-  const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
-  return { theme, toggle }
+  useEffect(() => {
+    document.documentElement.classList.toggle('text-grande', textSize === 'grande')
+    save(SIZE_KEY, textSize)
+  }, [textSize])
+
+  const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
+  return { theme, setTheme, toggleTheme, textSize, setTextSize }
 }

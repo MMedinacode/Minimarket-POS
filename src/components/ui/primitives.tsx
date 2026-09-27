@@ -207,12 +207,12 @@ export function StockBadge({ status, className }: { status: StockStatus; classNa
   if (status === 'critico')
     return (
       <Badge tone="warn" className={className}>
-        <AlertTriangle /> Crítico
+        <AlertTriangle /> Queda poco
       </Badge>
     )
   return (
     <Badge tone="ok" className={className}>
-      <CheckCircle2 /> OK
+      <CheckCircle2 /> Bien
     </Badge>
   )
 }

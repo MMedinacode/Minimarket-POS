@@ -1,29 +1,22 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
-  AlertTriangle,
-  ClipboardList,
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   BadgeDollarSign,
   Clock,
-  Database,
   Moon,
   PackageX,
   Percent,
   Receipt,
-  ScanBarcode,
   Sparkles,
   Star,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
 import { axisProps, CHART, ChartTooltip, Legend } from '../components/charts'
-import { OrderModal } from '../components/OrderModal'
-import { ConfirmDialog } from '../components/ui/Modal'
-import { Badge, Button, Card, CardHeader, EmptyState, Segmented, StockBadge } from '../components/ui/primitives'
-import { useToast } from '../components/ui/Toast'
+import { Badge, Button, Card, CardHeader, EmptyState, Segmented } from '../components/ui/primitives'
 import { navigate } from '../hooks/useHashRoute'
 import {
   categoryMargins,
@@ -36,14 +29,11 @@ import {
   summarizeDay,
   topProducts,
 } from '../lib/analytics'
-import { describeThreshold, isAlert } from '../lib/stock'
-import { addDays, cn, dayKey, formatCLP, formatCLPShort, formatDateLong, formatInt, formatPct, formatQty, startOfDay } from '../lib/utils'
-import { useActions, useData, useDerived } from '../store/AppStore'
+import { addDays, cn, dayKey, formatCLP, formatCLPShort, formatInt, formatPct, formatQty, startOfDay } from '../lib/utils'
+import { useData } from '../store/AppStore'
 
-export default function Dashboard() {
-  const { products, sales, expenses, settings, isDemo } = useData()
-  const { stockInfo } = useDerived()
-  const [orderOpen, setOrderOpen] = useState(false)
+export default function Reports() {
+  const { sales, expenses, settings } = useData()
   const now = useMemo(() => new Date(), [sales, expenses]) // se recalcula con cada venta
 
   const today = dayKey(now)
@@ -57,77 +47,40 @@ export default function Dashboard() {
   }, [sales, now])
   const change = pctChange(summary.revenue, yesterdaySameTime)
 
-  const alerts = useMemo(
-    () =>
-      products
-        .map((p) => ({ p, info: stockInfo.get(p.id)! }))
-        .filter(({ info }) => isAlert(info.status))
-        .sort((a, b) => (a.info.status === 'agotado' ? -1 : 0) - (b.info.status === 'agotado' ? -1 : 0) || a.p.stock / (a.info.threshold || 1) - b.p.stock / (b.info.threshold || 1)),
-    [products, stockInfo],
-  )
-  const outOfStock = alerts.filter((a) => a.info.status === 'agotado').length
-
   return (
     <div className="space-y-4 sm:space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-subtle">{formatDateLong(now)}</p>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Resumen del día</h1>
-        </div>
-        <Button variant="primary" size="lg" onClick={() => navigate('vender')}>
-          <ScanBarcode /> Ir a vender
-        </Button>
-      </div>
-
-      {isDemo && <DemoBanner />}
+      <p className="text-muted">Números y gráficos para ver cómo va el negocio. Para el día a día no necesitas esta pantalla.</p>
 
       {/* Tarjetas resumen */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
           icon={<BadgeDollarSign />}
-          label="Ventas del día"
+          label="Vendido hoy"
           value={formatCLP(summary.revenue)}
           foot={
             change === null ? (
-              <span>Sin ventas ayer a esta hora</span>
+              <span>Ayer a esta hora no había ventas</span>
             ) : (
               <span className={cn('inline-flex items-center gap-0.5 font-semibold', change >= 0 ? 'text-ok-ink' : 'text-danger-ink')}>
                 {change >= 0 ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
-                {formatPct(Math.abs(change))} <span className="font-normal text-subtle">vs ayer a esta hora</span>
+                {formatPct(Math.abs(change))} <span className="font-normal text-subtle">que ayer a esta hora</span>
               </span>
             )
           }
         />
         <KpiCard
           icon={<TrendingUp />}
-          label="Ganancia neta del día"
+          label="Ganancia de hoy"
           value={formatCLP(summary.netProfit)}
           valueClass={summary.netProfit < 0 ? 'text-danger-ink' : undefined}
           foot={
             <span>
-              Utilidad {formatCLP(summary.grossProfit)} − gastos {formatCLP(summary.expenses)}
+              Ganado en ventas {formatCLP(summary.grossProfit)} − gastos {formatCLP(summary.expenses)}
             </span>
           }
         />
-        <KpiCard
-          icon={<Receipt />}
-          label="Transacciones"
-          value={formatInt(summary.transactions)}
-          foot={<span>Ticket promedio {formatCLP(summary.avgTicket)}</span>}
-        />
-        <button type="button" className="text-left" onClick={() => navigate('productos', { filtro: 'critico' })}>
-          <KpiCard
-            icon={<AlertTriangle />}
-            label="Stock crítico"
-            value={formatInt(alerts.length)}
-            tone={alerts.length ? 'warn' : undefined}
-            foot={
-              <span className="inline-flex items-center gap-1">
-                {outOfStock ? `${outOfStock} agotados · ` : ''}Ver productos <ArrowRight className="size-3.5" />
-              </span>
-            }
-          />
-        </button>
+        <KpiCard icon={<Receipt />} label="Ventas de hoy" value={formatInt(summary.transactions)} foot={<span>Promedio por venta {formatCLP(summary.avgTicket)}</span>} />
+        <KpiCard icon={<Wallet />} label="Gastos de hoy" value={formatCLP(summary.expenses)} foot={<span>Anotados en Caja</span>} />
       </div>
 
       <div className="grid gap-4 sm:gap-5 xl:grid-cols-5">
@@ -141,45 +94,6 @@ export default function Dashboard() {
       </div>
 
       <MarginCard />
-
-      <Card>
-        <CardHeader
-          icon={<AlertTriangle />}
-          title="Productos por reponer"
-          subtitle="El umbral cambia según la rotación y la velocidad real de venta de cada producto"
-          actions={
-            alerts.length > 0 && (
-              <>
-                <Button size="sm" variant="primary" onClick={() => setOrderOpen(true)}>
-                  <ClipboardList /> Armar pedido
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => navigate('productos', { filtro: 'critico' })}>
-                  Ver todos <ArrowRight />
-                </Button>
-              </>
-            )
-          }
-        />
-        <OrderModal open={orderOpen} onClose={() => setOrderOpen(false)} />
-        {alerts.length === 0 ? (
-          <EmptyState icon={<Sparkles />} title="Todo con stock suficiente" />
-        ) : (
-          <ul className="grid gap-2 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
-            {alerts.slice(0, 9).map(({ p, info }) => (
-              <li key={p.id} className="flex items-center gap-3 rounded-xl border border-line p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{p.name}</p>
-                  <p className="text-xs text-subtle">{describeThreshold(info, p.rotation)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="tabular text-lg font-extrabold">{formatQty(p.stock, p.unit)}</p>
-                  <StockBadge status={info.status} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
     </div>
   )
 }
@@ -191,77 +105,23 @@ function KpiCard({
   label,
   value,
   foot,
-  tone,
   valueClass,
 }: {
   icon: ReactNode
   label: string
   value: string
   foot?: ReactNode
-  tone?: 'warn'
   valueClass?: string
 }) {
   return (
-    <Card className={cn('h-full p-4 sm:p-5', tone === 'warn' && 'border-warn/60')}>
+    <Card className="h-full p-4 sm:p-5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-muted">{label}</p>
-        <span
-          className={cn(
-            'grid size-9 place-items-center rounded-xl [&_svg]:size-[18px]',
-            tone === 'warn' ? 'bg-warn-soft text-warn-ink' : 'bg-brand-soft text-brand-ink',
-          )}
-        >
-          {icon}
-        </span>
+        <span className="grid size-9 place-items-center rounded-xl bg-brand-soft text-brand-ink [&_svg]:size-[18px]">{icon}</span>
       </div>
-      <p className={cn('tabular mt-2 truncate text-2xl font-extrabold tracking-tight sm:text-3xl', tone === 'warn' && 'text-warn-ink', valueClass)}>
-        {value}
-      </p>
+      <p className={cn('tabular mt-2 truncate text-2xl font-extrabold tracking-tight sm:text-3xl', valueClass)}>{value}</p>
       {foot && <div className="mt-1 text-xs text-subtle">{foot}</div>}
     </Card>
-  )
-}
-
-// ---------- Banner de datos de demostración ----------
-
-function DemoBanner() {
-  const actions = useActions()
-  const toast = useToast()
-  const [confirm, setConfirm] = useState<null | 'keep' | 'empty'>(null)
-  return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-info-ink/25 bg-info-soft p-4 text-info-ink sm:flex-row sm:items-center">
-      <Database className="size-6 shrink-0" />
-      <div className="flex-1 text-sm">
-        <p className="font-bold">Estás viendo datos de demostración</p>
-        <p className="opacity-90">Productos de ejemplo y 14 días de ventas simuladas. Cuando quieras empezar de verdad, elige una opción:</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => navigate('excel')}>
-          Importar mi Excel
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setConfirm('keep')}>
-          Borrar ventas de prueba
-        </Button>
-        <Button size="sm" variant="primary" onClick={() => setConfirm('empty')}>
-          Empezar desde cero
-        </Button>
-      </div>
-      <ConfirmDialog
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
-        danger
-        title={confirm === 'keep' ? '¿Borrar ventas y gastos de prueba?' : '¿Empezar desde cero?'}
-        confirmLabel={confirm === 'keep' ? 'Borrar ventas de prueba' : 'Borrar todo'}
-        onConfirm={() => {
-          actions.endDemo(confirm === 'keep')
-          toast.success(confirm === 'keep' ? 'Listo: se mantuvieron los productos, sin ventas de prueba' : 'Listo: sistema vacío, agrega o importa tus productos')
-        }}
-      >
-        {confirm === 'keep'
-          ? 'Se mantienen los productos de ejemplo (puedes editarlos) y se borran las ventas y gastos simulados.'
-          : 'Se borran los productos, ventas y gastos de ejemplo. Tu contraseña y ajustes se mantienen.'}
-      </ConfirmDialog>
-    </div>
   )
 }
 
@@ -338,8 +198,8 @@ function TopProductsCard({ className }: { className?: string }) {
     <Card className={className}>
       <CardHeader
         icon={<Star />}
-        title="Top 5 productos estrella"
-        subtitle={by === 'revenue' ? 'Por plata vendida' : 'Por unidades vendidas'}
+        title="Los 5 que más se venden"
+        subtitle={by === 'revenue' ? 'Según la plata que dejaron' : 'Según cuántos se vendieron'}
         actions={
           <Segmented
             size="sm"
@@ -411,12 +271,12 @@ function WeekCard({ className }: { className?: string }) {
       <CardHeader
         icon={<Wallet />}
         title="Últimos 7 días"
-        subtitle={`Ventas ${formatCLP(total)} · utilidad ${formatCLP(profit)}`}
+        subtitle={`Vendido ${formatCLP(total)} · ganado ${formatCLP(profit)}`}
         actions={
           <Legend
             items={[
               { label: 'Ventas', color: CHART.s1 },
-              { label: 'Utilidad', color: CHART.s3 },
+              { label: 'Ganancia', color: CHART.s3 },
             ]}
           />
         }
@@ -429,7 +289,7 @@ function WeekCard({ className }: { className?: string }) {
             <YAxis {...axisProps} width={62} tickFormatter={formatCLPShort} />
             <Tooltip cursor={{ fill: CHART.cursor }} content={<ChartTooltip valueFormatter={formatCLP} />} />
             <Bar dataKey="ventas" name="Ventas" fill={CHART.s1} radius={[4, 4, 0, 0]} maxBarSize={30} />
-            <Bar dataKey="utilidad" name="Utilidad" fill={CHART.s3} radius={[4, 4, 0, 0]} maxBarSize={30} />
+            <Bar dataKey="utilidad" name="Ganancia" fill={CHART.s3} radius={[4, 4, 0, 0]} maxBarSize={30} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -448,8 +308,8 @@ function SlowMoversCard({ className, days }: { className?: string; days: number 
     <Card className={cn('flex flex-col', className)}>
       <CardHeader
         icon={<Moon />}
-        title="Productos de menor rotación"
-        subtitle={list.length ? `Sin ventas en ${days}+ días · ${formatCLP(dormant)} en bodega` : `Todos se vendieron en los últimos ${days} días`}
+        title="Productos que no se venden"
+        subtitle={list.length ? `Nadie los compró en ${days} días o más · ${formatCLP(dormant)} guardados en bodega` : `Todos se vendieron en los últimos ${days} días`}
         actions={
           list.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => navigate('productos', { filtro: 'lentos' })}>
@@ -500,14 +360,14 @@ function MarginCard() {
     <Card>
       <CardHeader
         icon={<Percent />}
-        title="Análisis de margen de ganancia"
-        subtitle="Precio de costo vs precio de venta, y la utilidad que deja cada producto"
+        title="Cuánto ganas con cada producto"
+        subtitle="La diferencia entre lo que te cuesta y lo que cobras"
       />
       <div className="grid gap-3 px-4 pt-4 sm:grid-cols-3 sm:px-5">
-        <Stat label="Margen promedio del inventario" value={formatPct(value.margin)} hint="Ponderado por stock actual" />
-        <Stat label="Utilidad si vendes todo el stock" value={formatCLP(value.potentialProfit)} hint={`Costo ${formatCLP(value.atCost)} → venta ${formatCLP(value.atPrice)}`} />
+        <Stat label="De cada $1.000 que vendes, ganas" value={formatCLP(value.margin * 10)} hint="En promedio, con lo que tienes hoy" />
+        <Stat label="Ganarías si vendes todo lo que tienes" value={formatCLP(value.potentialProfit)} hint={`Costo ${formatCLP(value.atCost)} → venta ${formatCLP(value.atPrice)}`} />
         <Stat
-          label="Productos con margen bajo (<15%)"
+          label="Productos que dejan muy poca ganancia"
           value={formatInt(lowMargin)}
           hint={lowMargin ? 'Revisa si conviene subir el precio' : 'Ninguno'}
           warn={lowMargin > 0}
@@ -516,7 +376,7 @@ function MarginCard() {
 
       <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-2">
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted">Margen por categoría</h3>
+          <h3 className="mb-2 text-sm font-semibold text-muted">% de ganancia por categoría</h3>
           <div style={{ height: Math.max(180, byCategory.length * 34) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byCategory} layout="vertical" margin={{ top: 0, right: 52, bottom: 0, left: 0 }}>
@@ -541,15 +401,15 @@ function MarginCard() {
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-muted">{mode === 'mejor' ? 'Los que más ganancia dejan por unidad' : 'Los de menor margen'}</h3>
+            <h3 className="text-sm font-semibold text-muted">{mode === 'mejor' ? 'Los que más ganancia dejan por unidad' : 'Los que dejan menos ganancia'}</h3>
             <Segmented
               size="sm"
               value={mode}
               onChange={setMode}
               ariaLabel="Ranking"
               options={[
-                { value: 'mejor', label: 'Más utilidad' },
-                { value: 'peor', label: 'Menor margen' },
+                { value: 'mejor', label: 'Más ganancia' },
+                { value: 'peor', label: 'Menos ganancia' },
               ]}
             />
           </div>
@@ -558,10 +418,10 @@ function MarginCard() {
               <thead className="bg-surface-2/70 text-left text-xs font-semibold text-subtle uppercase">
                 <tr>
                   <th className="px-3 py-2">Producto</th>
-                  <th className="px-3 py-2 text-right">Costo</th>
-                  <th className="px-3 py-2 text-right">Venta</th>
-                  <th className="px-3 py-2 text-right">Utilidad</th>
-                  <th className="w-36 px-3 py-2">Margen</th>
+                  <th className="px-3 py-2 text-right">Te cuesta</th>
+                  <th className="px-3 py-2 text-right">Lo vendes</th>
+                  <th className="px-3 py-2 text-right">Ganas</th>
+                  <th className="w-36 px-3 py-2">% ganancia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">

@@ -89,8 +89,16 @@ export async function loadData(): Promise<AppData | null> {
 // Recordamos la última versión guardada de cada colección para escribir solo lo que cambió
 const lastSaved = new Map<Key, unknown>()
 
+let frozen = false
+
+/** Deja de guardar hasta recargar (se usa justo antes de borrar todo y recargar) */
+export function freezeStorage() {
+  frozen = true
+}
+
 /** Guarda solo las colecciones que cambiaron. Devuelve true si escribió algo. */
 export async function saveData(data: AppData): Promise<boolean> {
+  if (frozen) return false
   const changed = KEYS.filter((k) => lastSaved.get(k) !== data[k]).map((k) => [k, data[k]] as [Key, unknown])
   if (!changed.length) return false
   if (!useFallback) {

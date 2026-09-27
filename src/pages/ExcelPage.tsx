@@ -39,7 +39,7 @@ const COLUMN_HELP: { col: string; desc: string; example: string; required?: bool
   { col: 'PrecioCosto', desc: 'Lo que te cuesta a ti (sin puntos o con $1.290).', example: '1290' },
   { col: 'PrecioVenta', desc: 'Precio al público.', example: '1990', required: true },
   { col: 'Stock', desc: 'Unidades (o kilos) disponibles hoy.', example: '24' },
-  { col: 'Rotacion', desc: 'Alta, Media o Baja. Define cuándo alertar stock crítico.', example: 'Alta' },
+  { col: 'Rotacion', desc: 'Alta (se vende mucho), Media o Baja. Sirve para avisarte cuando se acaba.', example: 'Alta' },
   { col: 'Unidad', desc: 'Opcional: "un" (por unidad) o "kg" (a granel).', example: 'un' },
   { col: 'StockMinimo', desc: 'Opcional: umbral de alerta propio para ese producto.', example: '5' },
 ]
@@ -500,7 +500,7 @@ function SheetViewer() {
                           className={cn(
                             'max-w-72 truncate border-r border-b border-line bg-surface px-2 py-1 whitespace-nowrap',
                             typeof cell === 'number' && 'tabular text-right',
-                            cell === 'Crítico' && 'text-warn-ink font-semibold',
+                            cell === 'Queda poco' && 'text-warn-ink font-semibold',
                             (cell === 'Agotado' || cell === 'Anulada') && 'text-danger-ink font-semibold',
                           )}
                           title={String(cell)}

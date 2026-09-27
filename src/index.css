@@ -148,6 +148,10 @@
     background-color: var(--bg);
     color: var(--fg);
   }
+  /* "Letra grande" (Más → Apariencia): todo lo que usa rem crece un 12,5 % */
+  html.text-grande {
+    font-size: 112.5%;
+  }
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

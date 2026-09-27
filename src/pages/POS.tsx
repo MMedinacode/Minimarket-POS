@@ -58,9 +58,10 @@ function customProduct(l: CartLine): Product {
 
 const PAYMENT_ICONS: Record<PaymentMethod, typeof Banknote> = {
   Efectivo: Banknote,
+  Tarjeta: CreditCard,
+  Transferencia: Landmark,
   Débito: CreditCard,
   Crédito: CreditCard,
-  Transferencia: Landmark,
 }
 
 const FREQUENT = '__frecuentes__'
@@ -397,7 +398,8 @@ export default function POS() {
           <span className="tabular text-3xl font-extrabold tracking-tight">{formatCLP(total)}</span>
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Medio de pago">
+        <p className="text-sm font-semibold text-muted">¿Cómo paga?</p>
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Medio de pago">
           {PAYMENT_METHODS.map((m) => {
             const Icon = PAYMENT_ICONS[m]
             return (
@@ -408,12 +410,12 @@ export default function POS() {
                 aria-checked={payment === m}
                 onClick={() => setPayment(m)}
                 className={cn(
-                  'flex h-14 flex-col items-center justify-center gap-0.5 rounded-xl border text-[0.7rem] font-semibold transition-colors',
+                  'flex h-16 flex-col items-center justify-center gap-1 rounded-xl border text-sm font-semibold transition-colors',
                   payment === m ? 'border-brand bg-brand-soft text-brand-ink' : 'border-line-strong bg-surface text-muted hover:text-fg',
                 )}
               >
                 <Icon className="size-5" />
-                {m === 'Transferencia' ? 'Transf.' : m}
+                {m}
               </button>
             )
           })}
@@ -421,17 +423,18 @@ export default function POS() {
 
         {payment === 'Efectivo' && (
           <div className="space-y-2">
+            <p className="text-sm font-semibold text-muted">¿Con cuánto paga?</p>
             <div className="grid grid-cols-[1fr_auto] items-center gap-3">
               <MoneyInput
                 value={received}
                 onValueChange={setReceived}
-                placeholder={total ? `${total.toLocaleString('es-CL')} (exacto)` : 'Monto recibido'}
+                placeholder={total ? `${total.toLocaleString('es-CL')} (justo)` : 'Monto recibido'}
                 aria-label="Monto recibido"
                 className="h-12 text-lg font-bold"
               />
               <div className="text-right">
-                <p className="text-xs font-semibold text-subtle">{missing ? 'Falta' : 'Vuelto'}</p>
-                <p className={cn('tabular text-xl font-extrabold', missing ? 'text-danger-ink' : 'text-ok-ink')}>
+                <p className="text-sm font-semibold text-subtle">{missing ? 'Falta' : 'Vuelto'}</p>
+                <p className={cn('tabular text-2xl font-extrabold', missing ? 'text-danger-ink' : 'text-ok-ink')}>
                   {formatCLP(missing || Math.max(0, change))}
                 </p>
               </div>
@@ -444,11 +447,11 @@ export default function POS() {
                     type="button"
                     onClick={() => setReceived(v)}
                     className={cn(
-                      'tabular h-9 rounded-lg border px-2.5 text-sm font-semibold transition-colors',
+                      'tabular h-11 rounded-xl border px-3 font-semibold transition-colors',
                       received === v ? 'border-brand bg-brand-soft text-brand-ink' : 'border-line-strong bg-surface hover:bg-surface-2',
                     )}
                   >
-                    {i === 0 ? 'Exacto' : formatCLP(v)}
+                    {i === 0 ? 'Justo' : formatCLP(v)}
                   </button>
                 ))}
               </div>
@@ -468,15 +471,16 @@ export default function POS() {
     <div className="lg:-mb-6 lg:grid lg:h-[calc(100dvh-6rem)] lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
       {/* Columna izquierda: escáner + búsqueda + productos */}
       <div className="flex min-h-0 flex-col gap-3 pb-24 lg:pb-0">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        {/* El buscador va en su propia fila (salvo en pantallas muy anchas) para que no quede aplastado */}
+        <div className="grid grid-cols-2 gap-2 2xl:flex">
+          <div className="relative col-span-2 2xl:flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-subtle" />
             <Input
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onSearchKey}
-              placeholder="Buscar por nombre o código…"
+              placeholder="Buscar producto…"
               className="h-12 pl-11 text-base"
               aria-label="Buscar producto"
               autoComplete="off"
@@ -504,20 +508,27 @@ export default function POS() {
             aria-pressed={cameraOn}
           >
             {cameraOn ? <CameraOff /> : <Camera />}
-            <span className="hidden sm:inline">{cameraOn ? 'Apagar cámara' : 'Cámara'}</span>
+            {cameraOn ? (
+              'Apagar cámara'
+            ) : (
+              <>
+                <span className="sm:hidden">Cámara</span>
+                <span className="hidden sm:inline">Escanear con cámara</span>
+              </>
+            )}
           </Button>
           <Button variant="outline" className="h-12" onClick={() => setCustomOpen(true)} title="Cobrar algo que no está en el inventario (F4)">
             <PenLine />
-            <span className="hidden sm:inline">Monto libre</span>
+            Otro monto
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl bg-ok-soft px-3 py-2 text-xs font-medium text-ok-ink">
+        <div className="hidden items-center gap-2 rounded-xl bg-ok-soft px-3 py-2 text-xs font-medium text-ok-ink lg:flex">
           <span className="relative flex size-2.5">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok opacity-60" />
             <span className="relative inline-flex size-2.5 rounded-full bg-ok" />
           </span>
-          Lector de código de barras listo: escanea en cualquier momento, no necesitas hacer clic.
+          Puedes escanear con la pistola en cualquier momento, sin hacer clic en nada.
         </div>
 
         {cameraOn && (
@@ -713,8 +724,8 @@ function CustomItemModal({
       open
       onClose={onClose}
       size="sm"
-      title="Monto libre"
-      description="Para cobrar algo que no está en el inventario. No descuenta stock."
+      title="Cobrar otro monto"
+      description="Para algo que no está en tu lista de productos (ej: un lápiz). No cambia el stock."
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -735,14 +746,14 @@ function CustomItemModal({
       >
         <div>
           <label htmlFor="free-amount" className="mb-1.5 block text-sm font-medium text-muted">
-            Precio
+            ¿Cuánto cuesta?
           </label>
           <MoneyInput id="free-amount" value={price} onValueChange={setPrice} autoFocus className="h-14 text-2xl font-bold" placeholder="0" />
         </div>
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <div>
             <label htmlFor="free-name" className="mb-1.5 block text-sm font-medium text-muted">
-              Descripción (opcional)
+              ¿Qué es? (opcional)
             </label>
             <Input id="free-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Lápiz pasta, Regalo" maxLength={60} />
           </div>
@@ -863,8 +874,8 @@ function ReceiptModal({ sale, onClose }: { sale: Sale | null; onClose: () => voi
         </div>
       )}
       <ul className="space-y-1.5 text-sm">
-        {sale.items.map((it) => (
-          <li key={it.productId} className="flex justify-between gap-3">
+        {sale.items.map((it, i) => (
+          <li key={`${it.productId}-${i}`} className="flex justify-between gap-3">
             <span className="min-w-0 truncate">
               <span className="tabular text-subtle">{formatQty(it.qty, it.unit)} ×</span> {it.name}
             </span>

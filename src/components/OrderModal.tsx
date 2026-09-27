@@ -82,7 +82,7 @@ function Inner({ onClose }: { onClose: () => void }) {
           <ClipboardList className="size-5" /> Pedido al proveedor
         </span>
       }
-      description="Productos en stock crítico. La cantidad sugerida alcanza para ~1 semana de venta; cámbiala si quieres."
+      description="Lo que se está acabando. Te sugerimos cuánto pedir para una semana; puedes cambiar los números."
       footer={
         lines.length > 0 && (
           <>
@@ -109,7 +109,7 @@ function Inner({ onClose }: { onClose: () => void }) {
     >
       {candidates.length === 0 ? (
         <EmptyState icon={<ClipboardList />} title="No hay nada que pedir">
-          Ningún producto está en stock crítico.
+          Tienes suficiente de todo por ahora.
         </EmptyState>
       ) : (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">

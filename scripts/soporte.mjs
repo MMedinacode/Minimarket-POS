@@ -47,9 +47,11 @@ function writeEnvKey(publicKey) {
 
 function copyToClipboard(text) {
   if (process.platform !== 'win32') return false
-  // clip.exe entiende UTF-16 con BOM (así no se rompen los tildes)
-  const input = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')])
-  return spawnSync('clip', { input }).status === 0
+  // El texto va por una variable de entorno (así no se rompen los tildes ni quedan caracteres raros)
+  const r = spawnSync('powershell', ['-NoProfile', '-Command', 'Set-Clipboard -Value $env:MM_PORTAPAPELES'], {
+    env: { ...process.env, MM_PORTAPAPELES: text },
+  })
+  return r.status === 0
 }
 
 async function createKeys() {

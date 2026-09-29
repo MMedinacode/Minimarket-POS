@@ -21,9 +21,11 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 49 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 53 tests (incluye SQL real en PGlite, sin Docker)
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
+npm run soporte -- 4821 9375   # link de soporte para un cliente que olvidó la clave
+npm run soporte -- llaves      # crea las llaves de soporte (la pública va a .env)
 ```
 
 Flujo al terminar cambios: `npx tsc -b` → `npm test` → probar en el navegador (celular 375 px y
@@ -45,6 +47,11 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   una op con error no bloquea la cola) y `pull_changes` (incremental por `updated_at`, borrado suave).
 - `src/lib/auth.ts` — clave de la caja por dispositivo: PBKDF2-SHA256 (210k iteraciones, sal aleatoria),
   sin clave por defecto (asistente `pages/Setup.tsx`), bloqueo creciente 30 s / 2 min / 10 min.
+- `src/lib/support.ts` + `scripts/soporte.mjs` — "Pedir ayuda por WhatsApp": la caja genera un código
+  de 8 dígitos, el soporte lo firma (ECDSA P-256) con su llave privada (`~/.caja-minimarket/`, fuera del
+  repo) y el link `#/soporte?r=<código>.<firma>` (`pages/SupportLink.tsx`) o el mensaje pegado en
+  `components/SupportHelp.tsx` permite crear una clave nueva sin borrar datos. Un uso, 1 hora, atado al equipo.
+  `VITE_SUPPORT_WHATSAPP` y `VITE_SUPPORT_PUBLIC_KEY` viven en `.env` (no en el repo público).
 
 ## Reglas que no se deben romper
 
@@ -58,7 +65,9 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 4. En Supabase va solo la **publishable key** (`VITE_SUPABASE_PUBLISHABLE_KEY`); la seguridad la da RLS.
    Jamás la secret key en el front.
 5. Crear/restablecer la clave de la caja con una cuenta abierta exige re-ingresar la contraseña de la cuenta
-   (si no, cualquiera con el equipo podría entrar a los datos de la nube). "Borrar todo" cierra la cuenta en el equipo.
+   o un link de soporte firmado (si no, cualquiera con el equipo podría entrar a los datos de la nube).
+   "Borrar todo" cierra la cuenta en el equipo. Nunca verificar el soporte con un secreto compartido (HMAC):
+   el repo y la app son públicos; solo la llave pública puede ir en el front.
 6. Todo el texto de la UI y los comentarios van en español de Chile, en palabras simples.
 
 ## Tests (`npm test`)
@@ -68,6 +77,8 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/sync/sync.test.ts` — motor de sync contra PostgreSQL real (PGlite) con el mismo `schema.sql`.
 - `src/lib/ean13.test.ts` — códigos de barra comparados con JsBarcode (solo dev).
 - `src/lib/auth.test.ts` — clave, migración de la huella antigua y bloqueo.
+- `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)
+  y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.
 
 ## Detalles que ya costaron tiempo
 
@@ -77,3 +88,9 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   y las capturas a veces salen a medio pintar: confirmar con `getComputedStyle`.
 - CSV de Excel en Chile: leer como texto (UTF-8 o Windows-1252) con `raw: true`, o "1.350" se lee como 1,35.
 - GitHub Pages sin Actions (el token de `gh` no tiene scope `workflow`): se publica con `npm run deploy`.
+- Para probar que se rechaza una firma alterada, cambia un carácter del MEDIO: el último carácter base64url
+  de una firma de 64 bytes tiene bits de relleno y cambiarlo puede dejar la misma firma.
+- El puerto 5173 puede estar ocupado por otro proyecto: `.claude/launch.json` usa `autoPort` y
+  `vite.config.ts` lee `PORT`. Con otro puerto, generar el link con `MM_APP_URL=http://localhost:PUERTO/`.
+- Copiar al portapapeles en Windows: `clip.exe` deja un BOM invisible; el script usa `Set-Clipboard` con el
+  texto en una variable de entorno. En pruebas usar `--sin-copiar` para no pisar el portapapeles del dueño.

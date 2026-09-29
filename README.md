@@ -36,9 +36,10 @@ del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ven
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | 49 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 53 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
 | `npm run ejemplo` | Regenera `public/ejemplo-inventario.xlsx` |
+| `npm run soporte -- 4821 9375` | Crea el link para que un cliente que olvidó la clave cree una nueva (sección 6) |
 
 ### Configuración (`.env`)
 
@@ -48,6 +49,8 @@ Copia `.env.example` como `.env`. Todo es opcional:
 VITE_BUSINESS_NAME=Minimarket Don Pepe    # nombre por defecto
 VITE_SUPABASE_URL=https://xxxx.supabase.co           # sincronización (ver sección 3)
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxx
+VITE_SUPPORT_WHATSAPP=569XXXXXXXX                    # ayuda por WhatsApp (ver sección 6)
+VITE_SUPPORT_PUBLIC_KEY=...                          # la escribe sola "npm run soporte -- llaves"
 ```
 
 ---
@@ -96,11 +99,16 @@ ese mismo SQL en PostgreSQL real e incluyen el caso "dos cajas venden sin intern
    (cada cuenta solo ve lo suyo). **Nunca** pongas la *secret key* en el `.env` de la app.
 5. `npm run deploy`. En la app aparecerá **Entrar con mi cuenta** en el login y en Ajustes.
 
+**Correo (obligatorio antes de entregar a clientes):** el correo que trae Supabase por defecto
+**solo envía a los miembros de tu equipo en Supabase** y tiene un límite bajo por hora, así que a un
+cliente no le llegaría el link de "olvidé mi contraseña". Configura un SMTP propio en
+**Authentication → Emails → SMTP** (por ejemplo Gmail con una contraseña de aplicación, igual que
+en el proyecto de barberías).
+
 **Plan gratis — a tener en cuenta:** 500 MB de base de datos (años de ventas de un negocio chico);
-el proyecto se *pausa* si pasa 7 días sin uso (se reactiva desde el panel); y el correo de
-confirmación que manda Supabase tiene un límite bajo por hora. Para uso real con varios
-clientes conviene configurar un SMTP propio en **Authentication → Emails → SMTP**
-(por ejemplo Gmail, igual que en el proyecto de barberías).
+el proyecto se *pausa* si pasa 7 días sin uso (se reactiva desde el panel); no incluye respaldos
+descargables (por eso la app trae el respaldo en Excel). Un solo proyecto sirve para todos tus
+clientes: cada cuenta ve solo lo suyo.
 
 ---
 
@@ -143,7 +151,35 @@ carpeta `dist` a <https://app.netlify.com/drop>. Las variables del `.env` se agr
 
 ---
 
-## 6. Manual rápido para el dueño del negocio
+## 6. Soporte por WhatsApp (para quien da soporte)
+
+Si un cliente olvida la clave, puede pedir ayuda sin perder nada y sin usar el correo:
+
+1. En la caja toca **¿Olvidaste tu clave? → Pedir ayuda por WhatsApp**. Aparece un código de 8
+   números (ej: `4821 9375`) y un botón que abre WhatsApp con el mensaje listo para tu número.
+2. Tú, en la carpeta del proyecto: `npm run soporte -- 4821 9375`. Te muestra el mensaje con un
+   link y lo deja **copiado**. Pégalo en el WhatsApp del cliente.
+   **Antes de mandarlo, confirma que te escribe el dueño desde su número de siempre** (no un empleado).
+3. El cliente toca el link **en el mismo equipo** y crea su clave nueva. Si el link no abre la caja
+   (iPhone con la caja instalada como app), pega el mensaje en **¿El link no abre la caja?**.
+
+**Por qué es seguro:** el link lleva una firma hecha con tu **llave privada**, que vive solo en tu
+computador (`%USERPROFILE%\.caja-minimarket\llave-soporte-privada.json`, fuera del proyecto y de
+GitHub). La app solo trae la llave **pública**, que sirve para comprobar firmas pero no para
+crearlas: nadie más puede fabricar esos links. Cada link sirve una sola vez, solo en el equipo que
+pidió ayuda, y vence en 1 hora.
+
+**Primera vez / en otro computador:**
+- `npm run soporte -- llaves` crea las llaves y escribe la pública en `.env`. Luego `npm run deploy`.
+- Respalda el archivo de la llave privada en un pendrive. Si la pierdes:
+  `npm run soporte -- llaves --nueva` y `npm run deploy` (los links viejos dejan de servir).
+- `npm run soporte -- 4821 9375 --local` crea el link para `http://localhost:5173` (pruebas).
+- Tu número va en `.env` (`VITE_SUPPORT_WHATSAPP`), que no se sube a GitHub. `npm run deploy`
+  avisa si falta: sin él, la app se publica sin el botón de ayuda.
+
+---
+
+## 7. Manual rápido para el dueño del negocio
 
 La app tiene 5 secciones abajo (en el celular) o a la izquierda (en el computador):
 **Inicio · Vender · Productos · Caja · Más**. Dentro de **Más → Cómo se usa** está esta misma
@@ -178,13 +214,15 @@ Abre el link en Chrome (Android) o Safari (iPhone) → menú → **Agregar a pan
 Queda como una app y abre aunque no haya señal.
 
 ### Si olvidas la clave
-- **Con cuenta:** "¿Olvidaste tu clave?" → entra con tu correo y contraseña → creas una clave nueva. No se pierde nada.
-- **Sin cuenta:** por seguridad, la única forma es borrar los datos de ese equipo (por eso conviene
+- **Por WhatsApp:** "¿Olvidaste tu clave?" → **Pedir ayuda por WhatsApp** → mandas el mensaje → te
+  responden con un link → lo tocas y creas una clave nueva. No se pierde nada.
+- **Con cuenta:** "¿Olvidaste tu clave?" → **Entrar con mi cuenta** → correo y contraseña → clave nueva.
+- **Si nada de eso sirve:** la única forma es borrar los datos de ese equipo (por eso conviene
   tener cuenta o descargar el Excel seguido).
 
 ---
 
-## 7. Seguridad
+## 8. Seguridad
 
 - **Sin clave por defecto:** cada dueño crea la suya en el primer inicio. Se rechazan claves
   fáciles (123456, 111111, 121212, "password"…).
@@ -194,14 +232,16 @@ Queda como una app y abre aunque no haya señal.
 - **Cuenta en la nube:** contraseña de mínimo 8 caracteres (Supabase la guarda con bcrypt), reglas
   RLS para que cada cuenta vea solo lo suyo, y solo la *publishable key* en el navegador.
 - Crear una clave nueva con una cuenta abierta en el equipo exige confirmar la contraseña de la
-  cuenta; "Borrar todo" también cierra la cuenta en ese equipo.
+  cuenta o un link de soporte firmado (sección 6); "Borrar todo" también cierra la cuenta en ese equipo.
+- **Link de soporte:** firma ECDSA P-256; la llave privada nunca sale del computador de quien da
+  soporte. Un solo uso, atado al código de ese equipo, vence en 1 hora.
 - Límite honesto: la clave protege la pantalla (que un cliente o empleado no vea las ganancias);
   quien tenga el equipo y conocimientos técnicos podría leer los datos guardados en el navegador.
   Para más protección: usar cuenta y bloquear la caja al alejarse (**Más → Bloquear caja**).
 
 ---
 
-## 8. Cómo está hecho
+## 9. Cómo está hecho
 
 - **React 19 + Vite + TypeScript** estricto, **Tailwind CSS v4** (modo claro/oscuro con tokens).
 - **Supabase** (PostgreSQL + cuentas + tiempo real) para la sincronización, opcional.
@@ -211,6 +251,7 @@ Queda como una app y abre aunque no haya señal.
 
 ```
 supabase/schema.sql          # tablas, seguridad RLS, apply_ops y pull_changes
+scripts/soporte.mjs          # llaves de soporte y links para crear una clave nueva
 src/
 ├── App.tsx                  # primera vez → clave → las 5 secciones
 ├── store/
@@ -219,6 +260,7 @@ src/
 ├── lib/
 │   ├── sync/                # motor de sincronización (cola, envío, descarga)
 │   ├── auth.ts              # clave de la caja (PBKDF2, bloqueo)
+│   ├── support.ts           # ayuda por WhatsApp y revisión del link de soporte
 │   ├── ean13.ts             # códigos de barra internos y dibujo EAN-13
 │   ├── stock.ts             # "se está acabando" y pedido sugerido
 │   ├── categories.ts        # categorías automáticas
@@ -227,8 +269,8 @@ src/
 │   └── storage.ts
 ├── hooks/useBarcodeScanner.ts   # detector de pistola lectora
 ├── components/              # formularios, modales, cámara, etiquetas, pedido, UI base
-└── pages/                   # Setup, Login, Home, POS, Inventory, Cash, More, Reports,
-                             # ExcelPage, Settings, Account, Help
+└── pages/                   # Setup, Login, SupportLink, Home, POS, Inventory, Cash, More,
+                             # Reports, ExcelPage, Settings, Account, Help
 ```
 
 ### Límites conocidos

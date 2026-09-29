@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "ejemplo": "node scripts/generar-ejemplo.mjs",
-    "deploy": "node scripts/deploy-gh-pages.mjs"
+    "deploy": "node scripts/deploy-gh-pages.mjs",
+    "soporte": "node scripts/soporte.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.1",

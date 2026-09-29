@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, Check, Cloud, Eye, EyeOff, FlaskConical, Loader2, PackageOpen, Store } from 'lucide-react'
 import { AccountPanel } from '../components/AccountPanel'
 import { Modal } from '../components/ui/Modal'
-import { Button, Input } from '../components/ui/primitives'
+import { Button, ChoiceButton, Input } from '../components/ui/primitives'
 import { cryptoAvailable, passwordProblem, setPassword, startSession } from '../lib/auth'
 import { cn } from '../lib/utils'
 import { useActions, useCloud, useData } from '../store/AppStore'
@@ -12,14 +12,14 @@ type Step = 'welcome' | 'pin' | 'name' | 'start'
 /**
  * Primera vez en este dispositivo: crear la clave, poner el nombre del negocio
  * y elegir cómo empezar. Si viene de "olvidé mi clave" (ya entró con su
- * cuenta), solo crea la clave nueva.
+ * cuenta o el soporte le mandó un link válido), solo crea la clave nueva.
  */
 export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin?: boolean }) {
   const data = useData()
   const actions = useActions()
   const cloud = useCloud()
   const [step, setStep] = useState<Step>(onlyPin ? 'pin' : 'welcome')
-  // (onlyPin = ya confirmó su cuenta en "olvidé mi clave")
+  // (onlyPin = ya confirmó su cuenta o usó un link de soporte en "olvidé mi clave")
   const [pin, setPin] = useState('')
   const [pin2, setPin2] = useState('')
   const [show, setShow] = useState(false)
@@ -199,14 +199,14 @@ export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin
           <div>
             <Title>¿Cómo quieres empezar?</Title>
             <div className="mt-5 space-y-3">
-              <Choice
+              <ChoiceButton
                 icon={<FlaskConical />}
                 title="Probar primero con ejemplos"
                 desc="Productos y ventas de mentira para practicar sin miedo. Después se borran con un botón."
                 onClick={() => void finish('demo')}
                 disabled={busy}
               />
-              <Choice
+              <ChoiceButton
                 icon={<PackageOpen />}
                 title="Empezar con mis productos"
                 desc="La caja parte vacía y agregas tus productos (uno por uno o desde un Excel)."
@@ -259,22 +259,5 @@ function Rules({ pin }: { pin: string }) {
         <Check className="size-4" /> {pin && long && problem ? problem : 'Que no sea fácil de adivinar (nada de 123456 ni 111111)'}
       </li>
     </ul>
-  )
-}
-
-function Choice({ icon, title, desc, onClick, disabled }: { icon: ReactNode; title: string; desc: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex w-full items-start gap-4 rounded-2xl border border-line-strong p-4 text-left transition-colors hover:border-brand hover:bg-brand-soft/50 disabled:opacity-50"
-    >
-      <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink [&_svg]:size-6">{icon}</span>
-      <span>
-        <span className="block text-lg font-bold">{title}</span>
-        <span className="block text-muted">{desc}</span>
-      </span>
-    </button>
   )
 }

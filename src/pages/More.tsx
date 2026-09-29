@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { BarChart3, ChevronRight, Cloud, FileSpreadsheet, HelpCircle, Lock, Moon, Settings, Sun, Tag, Type } from 'lucide-react'
+import { BarChart3, ChevronRight, Cloud, FileSpreadsheet, HelpCircle, Lock, MessageCircle, Moon, Settings, Sun, Tag, Type } from 'lucide-react'
 import { LabelsModal } from '../components/LabelsModal'
 import { Card, Segmented } from '../components/ui/primitives'
 import { navigate } from '../hooks/useHashRoute'
 import type { TextSize, Theme } from '../hooks/useTheme'
-import { useCloud } from '../store/AppStore'
+import { whatsappUrl } from '../lib/support'
+import { useCloud, useData } from '../store/AppStore'
 
 interface Props {
   theme: Theme
@@ -17,6 +18,7 @@ interface Props {
 /** "Más": todo lo que no es del día a día, en una lista corta y clara */
 export default function More({ theme, onTheme, textSize, onTextSize, onLock }: Props) {
   const cloud = useCloud()
+  const { settings } = useData()
   const [labelsOpen, setLabelsOpen] = useState(false)
 
   const accountDesc = !cloud.enabled
@@ -33,6 +35,10 @@ export default function More({ theme, onTheme, textSize, onTextSize, onLock }: P
     { icon: Settings, title: 'Ajustes', desc: 'Nombre del negocio, clave y avisos', go: () => navigate('ajustes') },
     { icon: HelpCircle, title: 'Cómo se usa', desc: 'Ayuda paso a paso', go: () => navigate('ayuda') },
   ]
+  const helpUrl = whatsappUrl(`Hola, tengo una duda con la caja de ${settings.businessName}.`)
+  if (helpUrl) {
+    items.push({ icon: MessageCircle, title: 'Pedir ayuda por WhatsApp', desc: 'Escríbenos si algo no te resulta', go: () => window.open(helpUrl, '_blank', 'noopener') })
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">

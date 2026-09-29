@@ -284,6 +284,37 @@ export function EmptyState({
   )
 }
 
+// ---------- Opción grande (ícono + título + explicación) ----------
+
+export function ChoiceButton({
+  icon,
+  title,
+  desc,
+  onClick,
+  disabled,
+}: {
+  icon: ReactNode
+  title: string
+  desc: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-start gap-4 rounded-2xl border border-line-strong p-4 text-left transition-colors hover:border-brand hover:bg-brand-soft/50 disabled:opacity-50"
+    >
+      <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink [&_svg]:size-6">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-lg font-bold">{title}</span>
+        <span className="block text-muted">{desc}</span>
+      </span>
+    </button>
+  )
+}
+
 export function Kbd({ children }: { children: ReactNode }) {
   return (
     <kbd className="rounded-md border border-line-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[0.7rem] font-semibold text-muted">

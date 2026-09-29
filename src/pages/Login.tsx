@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Eye, EyeOff, Loader2, Lock, Store } from 'lucide-react'
+import { ArrowLeft, Cloud, Eye, EyeOff, Loader2, Lock, MessageCircle, Store } from 'lucide-react'
 import { AccountPanel } from '../components/AccountPanel'
+import { SupportHelp } from '../components/SupportHelp'
 import { Modal } from '../components/ui/Modal'
-import { Button, Input } from '../components/ui/primitives'
+import { Button, ChoiceButton, Input } from '../components/ui/primitives'
 import {
   attemptsBeforeLock,
   clearFailedAttempts,
@@ -13,12 +14,13 @@ import {
   verifyPassword,
 } from '../lib/auth'
 import { clearData, freezeStorage, writePref } from '../lib/storage'
+import { supportUnlockAvailable } from '../lib/support'
 import { useCloud } from '../store/AppStore'
 
 interface Props {
   businessName: string
   onSuccess: () => void
-  /** Olvidó la clave y confirmó su cuenta: hay que crear una nueva */
+  /** Olvidó la clave y demostró que es el dueño (cuenta o soporte): hay que crear una nueva */
   onForgot: () => void
 }
 
@@ -133,22 +135,39 @@ export default function Login({ businessName, onSuccess, onForgot }: Props) {
         </button>
       </form>
 
-      <ForgotModal open={forgotOpen} onClose={() => setForgotOpen(false)} onForgot={onForgot} />
+      <ForgotModal open={forgotOpen} onClose={() => setForgotOpen(false)} onForgot={onForgot} businessName={businessName} />
     </div>
   )
 }
 
+type ForgotView = 'menu' | 'cuenta' | 'whatsapp' | 'borrar'
+
 /**
- * Olvidó la clave. Con cuenta: confirma la contraseña de la cuenta y crea una
- * clave nueva. Sin cuenta: la única forma segura es borrar los datos del equipo.
+ * Olvidó la clave. Con cuenta: confirma la contraseña de la cuenta. Con ayuda
+ * por WhatsApp: el soporte le manda un link firmado. En ambos casos crea una
+ * clave nueva sin perder nada. Si no hay ninguna de las dos, la única forma
+ * segura es borrar los datos del equipo.
  */
-function ForgotModal({ open, onClose, onForgot }: { open: boolean; onClose: () => void; onForgot: () => void }) {
+function ForgotModal({ open, onClose, onForgot, businessName }: { open: boolean; onClose: () => void; onForgot: () => void; businessName: string }) {
   const cloud = useCloud()
-  const cloudEnabled = cloud.enabled
-  const [wipe, setWipe] = useState(false)
+  const [view, setView] = useState<ForgotView>('menu')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   if (!open) return null
+
+  const withAccount = cloud.enabled
+  const withSupport = supportUnlockAvailable()
+  const close = () => {
+    setView('menu')
+    setText('')
+    onClose()
+  }
+  // Ya demostró que es el dueño: se borra la clave vieja y se crea una nueva
+  const unlocked = () => {
+    forgetPassword()
+    close()
+    onForgot()
+  }
 
   const eraseDevice = async () => {
     setBusy(true)
@@ -161,35 +180,70 @@ function ForgotModal({ open, onClose, onForgot }: { open: boolean; onClose: () =
     location.reload()
   }
 
+  const back = (
+    <button type="button" onClick={() => setView('menu')} className="mb-3 flex items-center gap-1 font-semibold text-muted hover:text-fg">
+      <ArrowLeft className="size-5" /> Volver
+    </button>
+  )
+
+  const accountChoice = withAccount && (
+    <ChoiceButton icon={<Cloud />} title="Entrar con mi cuenta" desc="Con tu correo y la contraseña de tu cuenta." onClick={() => setView('cuenta')} />
+  )
+  const supportChoice = withSupport && (
+    <ChoiceButton icon={<MessageCircle />} title="Pedir ayuda por WhatsApp" desc="Te ayudamos a crear una clave nueva." onClick={() => setView('whatsapp')} />
+  )
+
   return (
-    <Modal open onClose={onClose} size="sm" title="¿Olvidaste tu clave?">
-      {!wipe ? (
-        <div className="space-y-4">
-          {cloudEnabled && (
-            <div>
-              <p className="mb-3 text-muted">Si usas la caja con una cuenta, entra con tu correo y podrás crear una clave nueva. No se borra nada.</p>
-              <AccountPanel
-                loginOnly
-                onSignedIn={() => {
-                  forgetPassword()
-                  onClose()
-                  onForgot()
-                }}
-              />
-            </div>
+    <Modal open onClose={close} size="sm" title={view === 'whatsapp' ? 'Pedir ayuda por WhatsApp' : '¿Olvidaste tu clave?'}>
+      {view === 'menu' && (
+        <div className="space-y-3">
+          {(withAccount || withSupport) && <p className="text-muted">No te preocupes: tus productos y ventas no se pierden.</p>}
+          {/* Si ya tiene la cuenta abierta aquí, lo más rápido es su contraseña */}
+          {cloud.user ? (
+            <>
+              {accountChoice}
+              {supportChoice}
+            </>
+          ) : (
+            <>
+              {supportChoice}
+              {accountChoice}
+            </>
           )}
           <div className="rounded-xl bg-surface-2 p-3 text-sm">
-            <p className="font-semibold">{cloudEnabled ? '¿No tienes cuenta?' : 'Sin cuenta no se puede recuperar'}</p>
-            <p className="mt-1 text-muted">
-              Por seguridad, la única forma es borrar los datos de este equipo y empezar de nuevo. Si tienes un Excel de respaldo, después lo puedes
-              cargar.
-            </p>
-            <Button variant="ghost" size="sm" className="mt-2 text-danger-ink" onClick={() => setWipe(true)}>
+            {withAccount || withSupport ? (
+              <p className="font-semibold">¿Nada de esto te sirve?</p>
+            ) : (
+              <>
+                <p className="font-semibold">Sin cuenta no se puede recuperar</p>
+                <p className="mt-1 text-muted">
+                  Por seguridad, la única forma es borrar los datos de este equipo y empezar de nuevo. Si tienes un Excel de respaldo, después lo
+                  puedes cargar.
+                </p>
+              </>
+            )}
+            <Button variant="ghost" size="sm" className="mt-2 text-danger-ink" onClick={() => setView('borrar')}>
               Borrar todo y empezar de nuevo
             </Button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {view === 'cuenta' && (
+        <div>
+          {back}
+          <AccountPanel loginOnly onSignedIn={unlocked} />
+        </div>
+      )}
+
+      {view === 'whatsapp' && (
+        <div>
+          {back}
+          <SupportHelp businessName={businessName} onUnlocked={unlocked} />
+        </div>
+      )}
+
+      {view === 'borrar' && (
         <div>
           <p className="text-muted">
             Se borrarán <strong className="text-fg">todos los productos, ventas y gastos de este equipo</strong>
@@ -198,7 +252,7 @@ function ForgotModal({ open, onClose, onForgot }: { open: boolean; onClose: () =
           </p>
           <Input className="mt-3" value={text} onChange={(e) => setText(e.target.value)} autoFocus aria-label="Escribe BORRAR para confirmar" />
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setWipe(false)}>
+            <Button variant="outline" onClick={() => setView('menu')}>
               Volver
             </Button>
             <Button variant="danger" disabled={busy || text.trim().toUpperCase() !== 'BORRAR'} onClick={() => void eraseDevice()}>

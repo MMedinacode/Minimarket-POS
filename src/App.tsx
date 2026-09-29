@@ -1,15 +1,17 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AppShell } from './components/AppShell'
 import { CloudPrompts } from './components/CloudPrompts'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { ToastProvider } from './components/ui/Toast'
+import { ToastProvider, useToast } from './components/ui/Toast'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { useHashRoute } from './hooks/useHashRoute'
 import { useAppearance } from './hooks/useTheme'
-import { endSession, hasPassword, hasValidSession } from './lib/auth'
+import { endSession, forgetPassword, hasPassword, hasValidSession } from './lib/auth'
+import { takeSupportTokenFromUrl } from './lib/support'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
+import SupportLink from './pages/SupportLink'
 import { AppStoreProvider, useData } from './store/AppStore'
 
 // Cada pantalla se descarga solo cuando se abre (la app carga más rápido)
@@ -23,6 +25,9 @@ const ExcelPage = lazy(() => import('./pages/ExcelPage'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const Account = lazy(() => import('./pages/Account'))
 const Help = lazy(() => import('./pages/Help'))
+
+// Link de soporte con que se abrió la caja (#/soporte?r=…). Se lee una sola vez, al cargar.
+const supportLinkAtStart = takeSupportTokenFromUrl()
 
 function PageFallback() {
   return (
@@ -40,6 +45,28 @@ function Main() {
   const [authed, setAuthed] = useState(hasValidSession)
   // Olvidó la clave y ya confirmó su cuenta: solo falta crear una nueva
   const [newPinOnly, setNewPinOnly] = useState(false)
+  const toast = useToast()
+
+  // Link de soporte: al abrir la caja o si llega con la caja ya abierta
+  const [supportToken, setSupportToken] = useState(supportLinkAtStart)
+  useEffect(() => {
+    const onHash = () => {
+      const t = takeSupportTokenFromUrl()
+      if (t) setSupportToken(t)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  // El link es auténtico: se borra la clave vieja y se crea una nueva (no se borra ningún dato)
+  const supportUnlocked = useCallback(() => {
+    forgetPassword()
+    endSession()
+    setSupportToken(null)
+    setAuthed(false)
+    setNewPinOnly(true)
+    setPinSet(false)
+    toast.success('Link correcto. Ahora crea tu clave nueva.')
+  }, [toast])
 
   const lock = () => {
     endSession()
@@ -47,7 +74,9 @@ function Main() {
   }
 
   let screen
-  if (!pinSet) {
+  if (supportToken) {
+    screen = <SupportLink token={supportToken} onUnlocked={supportUnlocked} onClose={() => setSupportToken(null)} />
+  } else if (!pinSet) {
     screen = (
       <Setup
         onlyPin={newPinOnly}

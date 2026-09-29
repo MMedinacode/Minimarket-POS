@@ -27,7 +27,8 @@ export default defineConfig({
       },
     }),
   ],
-  server: { host: true },
+  // PORT lo asigna el panel de vista previa si 5173 está ocupado
+  server: { host: true, port: Number(process.env.PORT) || 5173 },
   build: {
     chunkSizeWarningLimit: 900,
   },

@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ChevronDown,
   HandCoins,
+  KeyRound,
+  MessageCircle,
   PackagePlus,
   PenLine,
   Plus,
@@ -16,7 +18,9 @@ import {
   WifiOff,
   XCircle,
 } from 'lucide-react'
-import { Card } from '../components/ui/primitives'
+import { Button, Card } from '../components/ui/primitives'
+import { supportUnlockAvailable, whatsappUrl } from '../lib/support'
+import { useCloud, useData } from '../store/AppStore'
 
 interface Topic {
   icon: typeof ScanBarcode
@@ -170,12 +174,50 @@ const TOPICS: Topic[] = [
   },
 ]
 
+/** Cómo recuperar la clave según lo que tenga esta caja (cuenta y/o ayuda por WhatsApp) */
+function forgotTopic(withAccount: boolean, withSupport: boolean): Topic {
+  return {
+    icon: KeyRound,
+    title: 'Si olvidas la clave',
+    body:
+      withAccount || withSupport ? (
+        <Steps>
+          <li>
+            En la pantalla de la clave, toca <B>¿Olvidaste tu clave?</B>
+          </li>
+          {withSupport && (
+            <li>
+              Toca <B>Pedir ayuda por WhatsApp</B> y manda el mensaje. Te respondemos con un link: tócalo y crea tu clave nueva.
+            </li>
+          )}
+          {withAccount && (
+            <li>
+              {withSupport ? 'O, si tienes cuenta, toca ' : 'Toca '}
+              <B>Entrar con mi cuenta</B> y escribe tu correo y contraseña.
+            </li>
+          )}
+          <li>No se borra ningún producto ni venta.</li>
+        </Steps>
+      ) : (
+        <p>
+          La clave queda solo en este equipo. Si la olvidas, hay que borrar los datos del equipo y empezar de nuevo. Para no perder nada, crea
+          una cuenta en <B>Más → Cuenta y respaldo en línea</B>.
+        </p>
+      ),
+  }
+}
+
 /** Ayuda en palabras simples, un tema a la vez */
 export default function Help() {
+  const cloud = useCloud()
+  const { settings } = useData()
+  const topics = [...TOPICS, forgotTopic(cloud.enabled, supportUnlockAvailable())]
+  const helpUrl = whatsappUrl(`Hola, tengo una duda con la caja de ${settings.businessName}.`)
+
   return (
     <div className="mx-auto max-w-2xl space-y-3">
       <p className="text-muted">Toca un tema para ver cómo se hace.</p>
-      {TOPICS.map((t) => (
+      {topics.map((t) => (
         <Card key={t.title} className="overflow-hidden">
           <details className="group">
             <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-4 sm:px-5">
@@ -189,6 +231,14 @@ export default function Help() {
           </details>
         </Card>
       ))}
+      {helpUrl && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+          <p className="text-lg font-semibold">¿No encuentras lo que buscas?</p>
+          <Button variant="primary" onClick={() => window.open(helpUrl, '_blank', 'noopener')}>
+            <MessageCircle /> Escríbenos por WhatsApp
+          </Button>
+        </Card>
+      )}
     </div>
   )
 }

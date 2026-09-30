@@ -36,8 +36,10 @@ del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ven
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | 53 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 56 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
+| `npm run deploy:netlify` | Compila y publica en Netlify (`caja-minimarket.netlify.app`, sección 5) |
+| `npm run iconos` | Regenera los íconos PNG para celular desde el dibujo del logo |
 | `npm run ejemplo` | Regenera `public/ejemplo-inventario.xlsx` |
 | `npm run soporte -- 4821 9375` | Crea el link para que un cliente que olvidó la clave cree una nueva (sección 6) |
 
@@ -143,9 +145,16 @@ El Excel **exportado** (4 hojas: Inventario, Ventas, Gastos, Resumen diario) se 
 En 1–2 minutos se actualiza el sitio; quien ya lo tenga abierto verá el aviso
 *"Hay una versión nueva · Actualizar"* (nunca se recarga solo a mitad de una venta).
 
-**Netlify:** el proyecto trae `netlify.toml`. Lo más rápido: `npm run build` y arrastrar la
-carpeta `dist` a <https://app.netlify.com/drop>. Las variables del `.env` se agregan en
-*Site configuration → Environment variables*.
+**Netlify** (gratis, dirección `https://caja-minimarket.netlify.app`, con las cabeceras de
+seguridad de `netlify.toml`). Se compila en tu computador con tu `.env`, así el número y la llave
+de soporte nunca pasan por GitHub ni por la configuración de Netlify.
+
+1. Primera vez: `npx -y netlify-cli login` (abre el navegador; entras o creas la cuenta gratis y
+   tocas *Authorize*). Luego `npx -y netlify-cli sites:create --name caja-minimarket`.
+2. Cada vez que publiques: `npm run deploy:netlify`.
+
+Ojo: GitHub Pages y Netlify son direcciones distintas y cada una guarda sus propios datos en el
+navegador. Usa **una sola** como la oficial para tus clientes.
 
 > La cámara solo funciona con HTTPS (GitHub Pages y Netlify lo dan) o en `localhost`.
 
@@ -213,6 +222,11 @@ ordenar categorías automáticamente y Excel.
 Abre el link en Chrome (Android) o Safari (iPhone) → menú → **Agregar a pantalla de inicio**.
 Queda como una app y abre aunque no haya señal.
 
+### Respaldo
+- **Con cuenta:** se respalda solo, en línea.
+- **Sin cuenta:** una vez por semana Inicio muestra **Guarda un respaldo de tu caja**. Toca
+  **Descargar respaldo** y mándate el Excel por WhatsApp o correo. Con ese archivo recuperas todo.
+
 ### Si olvidas la clave
 - **Por WhatsApp:** "¿Olvidaste tu clave?" → **Pedir ayuda por WhatsApp** → mandas el mensaje → te
   responden con un link → lo tocas y creas una clave nueva. No se pierde nada.
@@ -245,7 +259,7 @@ Queda como una app y abre aunque no haya señal.
 
 - **React 19 + Vite + TypeScript** estricto, **Tailwind CSS v4** (modo claro/oscuro con tokens).
 - **Supabase** (PostgreSQL + cuentas + tiempo real) para la sincronización, opcional.
-- **vite-plugin-pwa** (funciona sin internet), **Recharts**, **SheetJS**, **html5-qrcode**, **Lucide**.
+- **vite-plugin-pwa** (funciona sin internet; íconos PNG para Android/iPhone generados con `npm run iconos`), **Recharts**, **SheetJS**, **html5-qrcode**, **Lucide**.
 - Pruebas con **Vitest**; el SQL del servidor se prueba en **PGlite** (PostgreSQL en WebAssembly, sin Docker).
 - `CLAUDE.md` resume la arquitectura y las reglas del proyecto para seguir trabajándolo con Claude Code.
 
@@ -261,6 +275,7 @@ src/
 │   ├── sync/                # motor de sincronización (cola, envío, descarga)
 │   ├── auth.ts              # clave de la caja (PBKDF2, bloqueo)
 │   ├── support.ts           # ayuda por WhatsApp y revisión del link de soporte
+│   ├── backup.ts            # aviso semanal de respaldo (solo sin cuenta)
 │   ├── ean13.ts             # códigos de barra internos y dibujo EAN-13
 │   ├── stock.ts             # "se está acabando" y pedido sugerido
 │   ├── categories.ts        # categorías automáticas

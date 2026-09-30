@@ -1,17 +1,13 @@
 // Publica la carpeta dist/ en la rama gh-pages (GitHub Pages).
 // Uso: npm run deploy   (compila y sube; tarda ~1 minuto en verse online)
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
+import { warnMissingSupport } from './revisar-env.mjs'
 
 const run = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', ...opts })
 const remote = execSync('git remote get-url origin').toString().trim()
 
-// Aviso si falta la ayuda por WhatsApp (el .env no se sube a GitHub: si se pierde, el botón desaparece sin avisar)
-const env = existsSync('.env') ? readFileSync('.env', 'utf8') : ''
-if (!/^VITE_SUPPORT_WHATSAPP=\d+/m.test(env) || !/^VITE_SUPPORT_PUBLIC_KEY=\S+/m.test(env)) {
-  console.warn('\n⚠ Sin VITE_SUPPORT_WHATSAPP o VITE_SUPPORT_PUBLIC_KEY en .env: la app se publica SIN "Pedir ayuda por WhatsApp".\n')
-}
-
+warnMissingSupport()
 run('npm run build')
 if (!existsSync('dist/index.html')) throw new Error('No se generó dist/index.html')
 // .nojekyll: GitHub Pages sirve los archivos tal cual, sin procesarlos

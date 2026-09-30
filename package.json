@@ -12,6 +12,7 @@
     "ejemplo": "node scripts/generar-ejemplo.mjs",
     "iconos": "node scripts/generar-iconos.mjs",
     "deploy": "node scripts/deploy-gh-pages.mjs",
+    "deploy:netlify": "node scripts/deploy-netlify.mjs",
     "soporte": "node scripts/soporte.mjs"
   },
   "dependencies": {

@@ -21,9 +21,11 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 53 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 56 tests (incluye SQL real en PGlite, sin Docker)
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
+npm run deploy:netlify   # build local (con .env) + publica en caja-minimarket.netlify.app
+npm run iconos    # regenera public/icon-*.png y apple-touch-icon.png (sin librerías)
 npm run soporte -- 4821 9375   # link de soporte para un cliente que olvidó la clave
 npm run soporte -- llaves      # crea las llaves de soporte (la pública va a .env)
 ```
@@ -52,6 +54,8 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   repo) y el link `#/soporte?r=<código>.<firma>` (`pages/SupportLink.tsx`) o el mensaje pegado en
   `components/SupportHelp.tsx` permite crear una clave nueva sin borrar datos. Un uso, 1 hora, atado al equipo.
   `VITE_SUPPORT_WHATSAPP` y `VITE_SUPPORT_PUBLIC_KEY` viven en `.env` (no en el repo público).
+- `src/lib/backup.ts` + `components/BackupReminder.tsx` — sin cuenta, Inicio recuerda cada 7 días descargar
+  el Excel (se marca también al exportar desde Excel y respaldo). Con cuenta no aparece.
 
 ## Reglas que no se deben romper
 
@@ -77,6 +81,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/sync/sync.test.ts` — motor de sync contra PostgreSQL real (PGlite) con el mismo `schema.sql`.
 - `src/lib/ean13.test.ts` — códigos de barra comparados con JsBarcode (solo dev).
 - `src/lib/auth.test.ts` — clave, migración de la huella antigua y bloqueo.
+- `src/lib/backup.test.ts` — cuándo aparece y se pospone el aviso de respaldo.
 - `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)
   y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.
 
@@ -88,6 +93,9 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   y las capturas a veces salen a medio pintar: confirmar con `getComputedStyle`.
 - CSV de Excel en Chile: leer como texto (UTF-8 o Windows-1252) con `raw: true`, o "1.350" se lee como 1,35.
 - GitHub Pages sin Actions (el token de `gh` no tiene scope `workflow`): se publica con `npm run deploy`.
+- Netlify: publicar siempre con `npm run deploy:netlify` (compila aquí con el `.env`). No conectar el repo para
+  que Netlify compile: sin el `.env` la app saldría sin ayuda por WhatsApp. GitHub Pages y Netlify son orígenes
+  distintos (datos del navegador separados) y el link de soporte debe apuntar al que usa el cliente.
 - Para probar que se rechaza una firma alterada, cambia un carácter del MEDIO: el último carácter base64url
   de una firma de 64 bytes tiene bits de relleno y cambiarlo puede dejar la misma firma.
 - El puerto 5173 puede estar ocupado por otro proyecto: `.claude/launch.json` usa `autoPort` y

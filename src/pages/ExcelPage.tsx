@@ -18,6 +18,7 @@ import {
 import { Modal } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState, Input } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
+import { markBackupDone } from '../lib/backup'
 import { allCategories } from '../lib/categories'
 import {
   applyImport,
@@ -85,6 +86,7 @@ export default function ExcelPage() {
     try {
       const { exportWorkbook } = await import('../lib/excel-io')
       const name = exportWorkbook(data)
+      markBackupDone()
       toast.success(`Descargado: ${name}`)
     } catch (err) {
       console.error(err)

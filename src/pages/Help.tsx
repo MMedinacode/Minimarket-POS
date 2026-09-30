@@ -5,12 +5,14 @@ import {
   Banknote,
   CheckCircle2,
   ChevronDown,
+  Download,
   HandCoins,
   KeyRound,
   MessageCircle,
   PackagePlus,
   PenLine,
   Plus,
+  Receipt,
   Scale,
   ScanBarcode,
   Smartphone,
@@ -161,6 +163,26 @@ const TOPICS: Topic[] = [
     icon: WifiOff,
     title: 'Si se corta internet',
     body: <p>Sigue vendiendo normal. Todo queda guardado en el equipo y, si tienes cuenta, se sube solo cuando vuelve internet.</p>,
+  },
+  {
+    icon: Download,
+    title: 'Guardar un respaldo',
+    body: (
+      <p>
+        Si usas la caja con cuenta, se respalda sola. Si no, una vez por semana ve a <B>Más → Excel y respaldo → Descargar Excel
+        actualizado</B> y mándate el archivo por WhatsApp o correo. Si pierdes el equipo, cargas ese Excel y recuperas tus productos.
+      </p>
+    ),
+  },
+  {
+    icon: Receipt,
+    title: '¿Esta caja da boletas?',
+    body: (
+      <p>
+        No. Sirve para llevar tus ventas, lo que te queda en bodega y tus ganancias. La boleta la sigues dando como siempre (con la máquina
+        de tarjetas o la boleta del SII).
+      </p>
+    ),
   },
   {
     icon: Smartphone,

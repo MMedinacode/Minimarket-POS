@@ -20,7 +20,7 @@ export default defineConfig({
       injectRegister: false,
       manifest: false, // se usa public/manifest.webmanifest
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,webmanifest,xlsx}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,xlsx}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,

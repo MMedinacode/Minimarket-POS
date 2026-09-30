@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "ejemplo": "node scripts/generar-ejemplo.mjs",
+    "iconos": "node scripts/generar-iconos.mjs",
     "deploy": "node scripts/deploy-gh-pages.mjs",
     "soporte": "node scripts/soporte.mjs"
   },

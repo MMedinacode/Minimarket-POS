@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { BarChart3, ChevronRight, ClipboardList, HandCoins, PackagePlus, Plus, ShoppingCart } from 'lucide-react'
+import { BackupReminder } from '../components/BackupReminder'
 import { DemoBanner } from '../components/DemoBanner'
 import { ExpenseModal } from '../components/ExpenseModal'
 import { OrderModal } from '../components/OrderModal'
@@ -7,11 +8,12 @@ import { navigate } from '../hooks/useHashRoute'
 import { summarizeDay } from '../lib/analytics'
 import { isAlert } from '../lib/stock'
 import { cn, dayKey, formatCLP, formatDateLong } from '../lib/utils'
-import { useData, useDerived } from '../store/AppStore'
+import { useCloud, useData, useDerived } from '../store/AppStore'
 
 /** Pantalla de inicio: lo importante del día y botones grandes para cada tarea */
 export default function Home() {
-  const { sales, expenses, isDemo } = useData()
+  const { sales, expenses, products, isDemo } = useData()
+  const cloud = useCloud()
   const { stockInfo } = useDerived()
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
@@ -28,6 +30,8 @@ export default function Home() {
       </div>
 
       {isDemo && <DemoBanner />}
+      {/* Sin cuenta, los datos viven solo en este equipo: se recuerda el respaldo cada semana */}
+      {!isDemo && !cloud.user && products.length > 0 && <BackupReminder />}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Vendiste hoy" value={formatCLP(day.revenue)} sub={`${day.transactions} ${day.transactions === 1 ? 'venta' : 'ventas'}`} />

@@ -16,6 +16,7 @@ import {
   Scale,
   ScanBarcode,
   Smartphone,
+  TrendingUp,
   Wallet,
   WifiOff,
   XCircle,
@@ -145,9 +146,33 @@ const TOPICS: Topic[] = [
     icon: Wallet,
     title: 'Cerrar el día',
     body: (
-      <p>
-        En <B>Caja</B> ves cuánto vendiste, cuánto gastaste y <B>cuánta plata debería haber en el cajón</B>. Cuenta el efectivo y compáralo.
-      </p>
+      <Steps>
+        <li>
+          En <B>Caja</B> ves cuánto vendiste, cuánto gastaste y <B>cuánta plata debería haber en el cajón</B>.
+        </li>
+        <li>
+          Toca <B>Contar el cajón</B>, escribe con cuánto sencillo partiste y cuánta plata hay ahora.
+        </li>
+        <li>
+          La caja te dice si <B>está justo</B>, si <B>sobra</B> o si <B>falta</B> plata.
+        </li>
+      </Steps>
+    ),
+  },
+  {
+    icon: TrendingUp,
+    title: 'Subir los precios',
+    body: (
+      <Steps>
+        <li>
+          Ve a <B>Productos → Más opciones → Subir precios</B>.
+        </li>
+        <li>Elige si son todos o una categoría (ej: Bebidas), cuánto subir (ej: 10%) y a cuánto redondear.</li>
+        <li>
+          Revisa cómo quedan y toca <B>Subir precios</B>. Si te equivocaste, toca <B>Deshacer</B> en el aviso que aparece.
+        </li>
+        <li>Para cambiar un solo precio: en Productos toca el producto → Editar.</li>
+      </Steps>
     ),
   },
   {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Ban, ChevronDown, ChevronLeft, ChevronRight, HandCoins, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, ChevronDown, ChevronLeft, ChevronRight, HandCoins, Plus, Trash2 } from 'lucide-react'
+import { CashCountModal } from '../components/CashCountModal'
 import { ExpenseModal } from '../components/ExpenseModal'
 import { ConfirmDialog } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState } from '../components/ui/primitives'
@@ -26,6 +27,7 @@ export default function Cash() {
   const [voiding, setVoiding] = useState<Sale | null>(null)
   const [deletingExp, setDeletingExp] = useState<string | null>(null)
   const [showSales, setShowSales] = useState(false)
+  const [countOpen, setCountOpen] = useState(false)
 
   const move = (n: number) => {
     const next = dayKey(addDays(parseDayKey(day), n))
@@ -88,6 +90,11 @@ export default function Cash() {
             </div>
           ))}
         </dl>
+        {isToday && (
+          <Button variant="outline" size="lg" className="mt-4 w-full" onClick={() => setCountOpen(true)}>
+            <Calculator /> Contar el cajón
+          </Button>
+        )}
       </Card>
 
       <Button variant="primary" size="lg" className="w-full" onClick={() => setExpenseOpen(true)}>
@@ -143,6 +150,7 @@ export default function Cash() {
       </Card>
 
       <ExpenseModal open={expenseOpen} onClose={() => setExpenseOpen(false)} day={day} />
+      <CashCountModal open={countOpen} onClose={() => setCountOpen(false)} expectedCash={summary.expectedCash} />
       <ConfirmDialog
         open={Boolean(voiding)}
         onClose={() => setVoiding(null)}

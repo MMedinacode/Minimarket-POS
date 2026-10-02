@@ -21,7 +21,7 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 56 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 60 tests (incluye SQL real en PGlite, sin Docker)
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
 npm run deploy:netlify   # build local (con .env) + publica en caja-minimarket.netlify.app
@@ -54,6 +54,11 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   repo) y el link `#/soporte?r=<código>.<firma>` (`pages/SupportLink.tsx`) o el mensaje pegado en
   `components/SupportHelp.tsx` permite crear una clave nueva sin borrar datos. Un uso, 1 hora, atado al equipo.
   `VITE_SUPPORT_WHATSAPP` y `VITE_SUPPORT_PUBLIC_KEY` viven en `.env` (no en el repo público).
+- `src/lib/prices.ts` + `components/PriceRaiseModal.tsx` — "Subir precios" (Productos → Más opciones): % con
+  redondeo hacia arriba; usa `updateProduct` con `{ price }` (no hay acción nueva) y "Deshacer" en el aviso.
+- `components/CashCountModal.tsx` — "Contar el cajón" en Caja: sencillo del inicio (pref local) + `expectedCash`;
+  no guarda nada en los datos (`drawerDifference` en `analytics.ts`).
+- `ENTREGA.md` — lista paso a paso para instalar la caja en un negocio (para el dueño del proyecto).
 - `src/lib/backup.ts` + `components/BackupReminder.tsx` — sin cuenta, Inicio recuerda cada 7 días descargar
   el Excel (se marca también al exportar desde Excel y respaldo). Con cuenta no aparece.
 
@@ -81,6 +86,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/sync/sync.test.ts` — motor de sync contra PostgreSQL real (PGlite) con el mismo `schema.sql`.
 - `src/lib/ean13.test.ts` — códigos de barra comparados con JsBarcode (solo dev).
 - `src/lib/auth.test.ts` — clave, migración de la huella antigua y bloqueo.
+- `src/lib/prices.test.ts` — subir precios con redondeo y la cuenta de "Contar el cajón".
 - `src/lib/backup.test.ts` — cuándo aparece y se pospone el aviso de respaldo.
 - `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)
   y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.

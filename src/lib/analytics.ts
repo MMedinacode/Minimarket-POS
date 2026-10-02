@@ -59,6 +59,15 @@ export function summarizeDay(sales: Sale[], expenses: Expense[], key: string): D
   }
 }
 
+/**
+ * "Contar el cajón": diferencia entre lo contado y lo que debería haber
+ * (sencillo del inicio + ventas en efectivo − gastos pagados con la caja).
+ * Positivo = sobra plata; negativo = falta.
+ */
+export function drawerDifference(counted: number, startingCash: number, expectedCash: number): number {
+  return counted - (startingCash + expectedCash)
+}
+
 // ---------- Ventas por hora ----------
 
 export interface HourPoint {

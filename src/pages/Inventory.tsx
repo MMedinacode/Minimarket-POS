@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, X } from 'lucide-react'
+import { AlertTriangle, Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, TrendingUp, X } from 'lucide-react'
 import { AutoClassifyModal } from '../components/AutoClassifyModal'
 import { LabelsModal } from '../components/LabelsModal'
+import { PriceRaiseModal } from '../components/PriceRaiseModal'
 import { ProductForm } from '../components/ProductForm'
 import { ReceivingPanel } from '../components/ReceivingPanel'
 import { StockAdjustModal } from '../components/StockAdjustModal'
@@ -41,6 +42,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
   const [toolsOpen, setToolsOpen] = useState(false)
   const [labelsOpen, setLabelsOpen] = useState(false)
   const [classifying, setClassifying] = useState(false)
+  const [raisingPrices, setRaisingPrices] = useState(false)
 
   // "Llegó mercadería": cada escaneo suma 1 al stock
   const [receiving, setReceiving] = useState(false)
@@ -311,11 +313,13 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
       <ProductForm open={creating !== null} initialBarcode={creating || undefined} onClose={() => setCreating(null)} />
       <StockAdjustModal product={adjusting} onClose={() => setAdjusting(null)} />
       <AutoClassifyModal open={classifying} onClose={() => setClassifying(false)} />
+      <PriceRaiseModal open={raisingPrices} onClose={() => setRaisingPrices(false)} />
       <LabelsModal open={labelsOpen} onClose={() => setLabelsOpen(false)} preselect={filter === 'todos' && !query ? [] : rows.map((p) => p.id)} />
 
       <Modal open={toolsOpen} onClose={() => setToolsOpen(false)} size="sm" title="Más opciones">
         <div className="space-y-2">
           {[
+            { icon: TrendingUp, title: 'Subir precios', desc: 'Subir todos (o una categoría) en un %, ej: si el proveedor subió', run: () => setRaisingPrices(true) },
             { icon: Tag, title: 'Imprimir etiquetas', desc: 'Con código de barras, para lo que no trae código', run: () => setLabelsOpen(true) },
             { icon: Sparkles, title: 'Ordenar categorías', desc: 'Pone cada producto en su categoría según el nombre', run: () => setClassifying(true) },
             { icon: FileSpreadsheet, title: 'Cargar o descargar Excel', desc: 'Subir tu lista de productos o sacar un respaldo', run: () => navigate('excel') },

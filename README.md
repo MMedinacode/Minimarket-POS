@@ -20,6 +20,8 @@ Funciona en computador, tablet y celular, **también sin internet**. Con una cue
 
 ---
 
+> **¿Vas a instalarla en un negocio?** Sigue la lista corta de [`ENTREGA.md`](ENTREGA.md).
+
 ## 1. Ejecutar en tu computador
 
 Requisitos: [Node.js](https://nodejs.org) 22 o superior.
@@ -36,7 +38,7 @@ del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ven
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | 56 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 60 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
 | `npm run deploy:netlify` | Compila y publica en Netlify (`caja-minimarket.netlify.app`, sección 5) |
 | `npm run iconos` | Regenera los íconos PNG para celular desde el dibujo del logo |
@@ -211,11 +213,12 @@ ayuda, paso a paso y en palabras simples.
 
 ### Caja
 Muestra **cuánto vendiste, cuánto gastaste, cuánto te queda** y **cuánta plata debería haber en el
-cajón**. Si te equivocaste en una venta: *Ventas de hoy → tocar la venta → Anular venta*.
+cajón**. Al cerrar, **Contar el cajón** dice si está justo, si sobra o si falta plata. Si te equivocaste en una venta: *Ventas de hoy → tocar la venta → Anular venta*.
 
 ### Productos
 Lista simple con "Quedan 8 · Queda poco". Filtros: *Todos · Se están acabando · Agotados*.
-En **Más opciones**: imprimir etiquetas con código de barras (para lo que no trae código),
+En **Más opciones**: **subir precios** en un % (todos o una categoría, con vista previa y
+*Deshacer*), imprimir etiquetas con código de barras (para lo que no trae código),
 ordenar categorías automáticamente y Excel.
 
 ### Instalar en el celular

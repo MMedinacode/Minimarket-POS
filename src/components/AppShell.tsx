@@ -106,7 +106,7 @@ export function AppShell({ route, onLock, children }: Props) {
             onClick={onLock}
             className="flex h-12 w-full items-center gap-3 rounded-xl px-3 font-medium text-muted hover:bg-surface-2 hover:text-fg"
           >
-            <Lock className="size-5" /> Bloquear caja
+            <Lock className="size-5" /> Bloquear pantalla
           </button>
         </div>
       </aside>

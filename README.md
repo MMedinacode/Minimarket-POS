@@ -254,7 +254,7 @@ Queda como una app y abre aunque no haya señal.
   soporte. Un solo uso, atado al código de ese equipo, vence en 1 hora.
 - Límite honesto: la clave protege la pantalla (que un cliente o empleado no vea las ganancias);
   quien tenga el equipo y conocimientos técnicos podría leer los datos guardados en el navegador.
-  Para más protección: usar cuenta y bloquear la caja al alejarse (**Más → Bloquear caja**).
+  Para más protección: usar cuenta y bloquear la caja al alejarse (**Más → Bloquear pantalla**).
 
 ---
 

@@ -8,6 +8,7 @@ import {
   Download,
   HandCoins,
   KeyRound,
+  Lock,
   MessageCircle,
   PackagePlus,
   PenLine,
@@ -156,7 +157,18 @@ const TOPICS: Topic[] = [
         <li>
           La caja te dice si <B>está justo</B>, si <B>sobra</B> o si <B>falta</B> plata.
         </li>
+        <li>No hay que “cerrar” la caja: cada día empieza de cero solo, a medianoche.</li>
       </Steps>
+    ),
+  },
+  {
+    icon: Lock,
+    title: 'Para qué sirve «Bloquear pantalla»',
+    body: (
+      <p>
+        Tapa la caja hasta que alguien escriba tu clave. Úsalo si te alejas del mesón, para que un cliente o empleado no vea tus ganancias.
+        No cierra el día, no borra nada y no cambia las ventas: al volver a entrar, todo sigue igual.
+      </p>
     ),
   },
   {

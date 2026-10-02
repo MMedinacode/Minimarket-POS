@@ -100,9 +100,9 @@ export default function More({ theme, onTheme, textSize, onTextSize, onLock }: P
         onClick={onLock}
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-line-strong bg-surface py-4 text-lg font-semibold hover:bg-surface-2"
       >
-        <Lock className="size-5" /> Bloquear caja
+        <Lock className="size-5" /> Bloquear pantalla
       </button>
-      <p className="text-center text-sm text-subtle">Para que nadie la use sin tu clave (por ejemplo, si te alejas del mesón).</p>
+      <p className="text-center text-sm text-subtle">Tapa la caja hasta que escribas tu clave, por si te alejas del mesón. No cierra el día ni borra nada.</p>
 
       <LabelsModal open={labelsOpen} onClose={() => setLabelsOpen(false)} />
     </div>

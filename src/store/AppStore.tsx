@@ -11,8 +11,8 @@ import { buildDemoData, buildEmptyData, DEFAULT_SETTINGS } from '../data/mockDat
 import { buildVelocityMap, getStockInfo, type StockInfo } from '../lib/stock'
 import { loadData, readPref, requestPersistentStorage, saveData, writePref } from '../lib/storage'
 import { SyncEngine, type SyncSnapshot } from '../lib/sync/engine'
-import { appUrl, cloudEnabled, getSupabase, IdbSyncStorage, SupabaseRemote } from '../lib/sync/supabase'
-import { uid } from '../lib/utils'
+import { appUrl, cloudEnabled, createCheckClient, getSupabase, IdbSyncStorage, SupabaseRemote } from '../lib/sync/supabase'
+import { lineTotal, uid } from '../lib/utils'
 import type { AppData, Expense, PaymentMethod, Product, Sale, SaleItem, Settings } from '../types'
 import { reducer, type Action, type ProductPatch, type StockAdjustMode } from './reducer'
 
@@ -87,8 +87,8 @@ function createActions(dispatch: (a: Action) => void) {
       dispatch({ type: 'upsertProducts', products })
     },
     checkout({ items, payment, received }: CheckoutInput): Omit<Sale, 'number'> {
-      const total = items.reduce((a, it) => a + Math.round(it.qty * it.unitPrice), 0)
-      const cost = items.reduce((a, it) => a + Math.round(it.qty * it.unitCost), 0)
+      const total = items.reduce((a, it) => a + lineTotal(it.qty, it.unitPrice), 0)
+      const cost = items.reduce((a, it) => a + lineTotal(it.qty, it.unitCost), 0)
       const sale: Omit<Sale, 'number'> = {
         id: uid(),
         date: new Date().toISOString(),
@@ -133,6 +133,18 @@ interface CloudDeps {
   setRecovery: (v: boolean) => void
 }
 
+/**
+ * La cuenta de ESTE equipo (la última que se usó aquí). "Olvidé mi clave → Entrar con mi cuenta"
+ * solo acepta esa cuenta: si no, cualquiera podría crear una cuenta propia y usarla para entrar.
+ */
+export interface DeviceAccount {
+  id: string
+  email: string
+}
+export function deviceAccount(): DeviceAccount | null {
+  return readPref<DeviceAccount | null>('cuentaEquipo', null)
+}
+
 function friendlyAuthError(msg: string): string {
   if (/Invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos'
   if (/Email not confirmed/i.test(msg)) return 'Falta confirmar tu correo: revisa tu bandeja de entrada (y spam)'
@@ -149,6 +161,26 @@ function createCloudApi(deps: CloudDeps) {
     async signIn(email: string, password: string): Promise<string | null> {
       const { error } = await (await client()).auth.signInWithPassword({ email: email.trim(), password })
       return error ? friendlyAuthError(error.message) : null
+    },
+    /**
+     * Comprueba que el correo y la contraseña son los de la cuenta de ESTE equipo (para crear una
+     * clave nueva). Se revisa con un cliente aparte; si es la cuenta correcta y no estaba abierta, se abre.
+     */
+    async verifyOwner(email: string, password: string): Promise<string | null> {
+      const owner = deviceAccount()
+      if (!owner) return 'Esta caja no tiene una cuenta guardada'
+      const check = await createCheckClient()
+      const { data, error } = await check.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) return friendlyAuthError(error.message)
+      await check.auth.signOut({ scope: 'local' }).catch(() => {}) // cierra solo esta comprobación
+      if (data.user?.id !== owner.id) return 'Esa no es la cuenta de esta caja. Usa el correo con que se creó.'
+      const main = await client()
+      const { data: current } = await main.auth.getSession()
+      if (current.session?.user.id !== owner.id) {
+        const { error: e2 } = await main.auth.signInWithPassword({ email: email.trim(), password })
+        if (e2) return friendlyAuthError(e2.message)
+      }
+      return null
     },
     async signUp(email: string, password: string, businessName: string): Promise<{ error: string | null; needsConfirmation: boolean }> {
       if (businessName.trim()) writePref('pendingBizName', businessName.trim())
@@ -175,6 +207,7 @@ function createCloudApi(deps: CloudDeps) {
       const unsynced = engine?.getSnapshot().pending ?? 0
       if (unsynced > 0 && !force) return { unsynced }
       engine?.destroy() // que no vuelva a escribir la copia local mientras se borra
+      await engine?.whenIdle() // y que termine lo que estaba haciendo antes de borrar
       const c = await client()
       const { data } = await c.auth.getSession()
       if (data.session) await new IdbSyncStorage(data.session.user.id).clear()
@@ -208,6 +241,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [localData, dispatchLocal] = useReducer(reducer, undefined, () => buildEmptyData())
   const [localReady, setLocalReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // true = el último guardado en este equipo falló (se muestra un aviso fijo hasta que vuelva a guardar)
+  const [saveFailed, setSaveFailed] = useState(false)
   const latestLocal = useRef(localData)
   latestLocal.current = localData
 
@@ -265,8 +300,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     if (!localReady) return
     const t = setTimeout(() => {
       saveData(localData)
-        .then((wrote) => wrote && channel?.postMessage({ from: TAB_ID }))
-        .catch((err) => console.error('No se pudo guardar', err))
+        .then((wrote) => {
+          setSaveFailed(false)
+          if (wrote) channel?.postMessage({ from: TAB_ID })
+        })
+        .catch((err) => {
+          console.error('No se pudo guardar', err)
+          setSaveFailed(true)
+        })
     }, 200)
     return () => clearTimeout(t)
   }, [localData, localReady])
@@ -274,7 +315,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   // 3) Guardar al ocultar la pestaña y recargar si otra pestaña guardó
   useEffect(() => {
     const flush = () => {
-      if (document.visibilityState === 'hidden') void saveData(latestLocal.current)
+      if (document.visibilityState === 'hidden') saveData(latestLocal.current).catch(() => setSaveFailed(true))
     }
     const onMessage = (ev: MessageEvent<{ from: string }>) => {
       if (ev.data?.from === TAB_ID) return
@@ -299,9 +340,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       u ? { id: u.id, email: u.email ?? '' } : null
     getSupabase()
       .then(async (client) => {
-        const { data } = await client.auth.getSession()
+        const { data, error } = await client.auth.getSession()
         if (cancelled) return
-        setUser(toUser(data.session?.user))
+        let first = toUser(data.session?.user)
+        // (AuthRetryableFetchError = la librería no pudo conectarse; se compara el nombre para no cargarla entera al inicio)
+        if (!first && error?.name === 'AuthRetryableFetchError') {
+          // Sin internet y con la sesión vencida: se sigue con la copia de la cuenta guardada en
+          // este equipo (si no, parecería que se perdió todo). Al volver internet se renueva sola.
+          first = deviceAccount()
+        }
+        setUser(first)
         const { data: sub } = client.auth.onAuthStateChange((event, session) => {
           if (event === 'PASSWORD_RECOVERY') setRecovery(true)
           const next = toUser(session?.user)
@@ -319,16 +367,29 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // La cuenta abierta aquí pasa a ser "la cuenta de este equipo"
+  useEffect(() => {
+    if (user) writePref('cuentaEquipo', { id: user.id, email: user.email })
+  }, [user])
+
   // 5) Motor de sincronización mientras haya sesión
   useEffect(() => {
     if (!user) return
     let engine: SyncEngine | null = null
     let unsubscribe: (() => void) | undefined
     let cancelled = false
+    const startFailed = (err: unknown) => {
+      console.error('No se pudo iniciar la sincronización', err)
+      if (!cancelled) {
+        setSync({ data: null, status: 'error', pending: 0, lastSyncAt: null, error: 'No se pudo abrir la cuenta en este equipo. Toca Reintentar.' })
+      }
+    }
     getSupabase().then((client) => {
       if (cancelled) return
       engine = new SyncEngine(new SupabaseRemote(client, user.id), new IdbSyncStorage(user.id), (f) =>
-        toast.error(`No se pudo guardar en la nube (${f.type}): ${f.error}`),
+        f.type === 'guardar-local'
+          ? toast.error('Este equipo no pudo guardar el último cambio. Descarga un respaldo en Excel y escríbenos.', { duration: 30_000 })
+          : toast.error(`Un cambio no se pudo guardar en la nube (${f.type}). Escríbenos por WhatsApp: ${f.error}`, { duration: 30_000 }),
       )
       engineRef.current = engine
       let firstSync = true
@@ -346,8 +407,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           }
         }
       })
-      void engine.start()
-    })
+      engine.start().catch(startFailed)
+    }, startFailed)
     return () => {
       cancelled = true
       unsubscribe?.()
@@ -429,7 +490,28 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  return (
+    <StoreContext.Provider value={value}>
+      {children}
+      {saveFailed && mode === 'local' && <SaveFailedBanner />}
+    </StoreContext.Provider>
+  )
+}
+
+/** Aviso fijo cuando el equipo no está guardando: nunca se pierden ventas en silencio */
+function SaveFailedBanner() {
+  return (
+    <div
+      role="alert"
+      className="fixed inset-x-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-[95] mx-auto max-w-lg rounded-2xl border border-danger/50 bg-danger-soft p-4 text-danger-ink shadow-xl"
+    >
+      <p className="font-bold">Este equipo no está guardando los cambios</p>
+      <p className="mt-1 text-sm text-fg">
+        Puede que la memoria del navegador esté llena. No cierres la caja: ve a <strong>Más → Excel y respaldo → Descargar Excel
+        actualizado</strong> y escribe a soporte. El aviso se quita solo cuando vuelva a guardar.
+      </p>
+    </div>
+  )
 }
 
 function FullScreen({ children }: { children: ReactNode }) {

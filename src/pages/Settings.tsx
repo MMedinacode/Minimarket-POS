@@ -121,6 +121,8 @@ function AlertsCard() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    // Un campo vacío no es 0: si se guardara 0, esos productos nunca avisarían que se acaban
+    if (ROTATIONS.some((r) => !values[r].trim())) return toast.error('Completa los tres números (pueden ser 0)')
     const parsed = ROTATIONS.map((r) => [r, Number(values[r].replace(',', '.'))] as const)
     if (parsed.some(([, n]) => !Number.isFinite(n) || n < 0)) return toast.error('Escribe números (pueden ser 0)')
     actions.updateSettings({ thresholds: Object.fromEntries(parsed) as Record<Rotation, number> })
@@ -180,7 +182,7 @@ function AdvancedCard() {
     e.preventDefault()
     const c = Number(coverage.replace(',', '.'))
     const s = Number(slow)
-    if (!Number.isFinite(c) || c < 0 || !Number.isInteger(s) || s < 1) return toast.error('Revisa los números')
+    if (!coverage.trim() || !Number.isFinite(c) || c < 0 || !Number.isInteger(s) || s < 1) return toast.error('Revisa los números')
     actions.updateSettings({ coverageDays: c, slowMoverDays: s, allowNegativeStock: allowNegative })
     toast.success('Opciones guardadas')
   }
@@ -266,7 +268,13 @@ function AdvancedCard() {
         title="Borrar todos los datos"
         footer={
           <>
-            <Button variant="outline" onClick={() => setWipeOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWipeOpen(false)
+                setWipeText('') // si no, al volver a abrir ya estaría escrito BORRAR
+              }}
+            >
               Cancelar
             </Button>
             <Button

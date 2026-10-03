@@ -87,7 +87,9 @@ export async function setPassword(pwd: string): Promise<void> {
   if (!cryptoAvailable()) throw new Error('Abre la app desde su dirección segura (https://)')
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const hash = await pbkdf2(pwd, salt, ITERATIONS)
-  writePref(PREF, `pbkdf2:${ITERATIONS}:${toB64(salt)}:${toB64(hash)}`)
+  if (!writePref(PREF, `pbkdf2:${ITERATIONS}:${toB64(salt)}:${toB64(hash)}`)) {
+    throw new Error('No se pudo guardar la clave en este equipo. Revisa que el navegador no esté en modo privado.')
+  }
 }
 
 export async function verifyPassword(pwd: string): Promise<boolean> {

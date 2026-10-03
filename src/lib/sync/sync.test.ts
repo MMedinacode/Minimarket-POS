@@ -331,4 +331,53 @@ describe('sincronización con PostgreSQL real', () => {
     expect(reopened.getSnapshot().data?.products[0].stock).toBe(5)
     reopened.destroy()
   })
+  it('anular una venta ya borrada no devuelve stock y la numeración vuelve a 1 (igual que en la app)', async () => {
+    const d = device(USER_A)
+    await d.engine.start()
+    d.engine.dispatch({ type: 'addProduct', product: product({ stock: 10 }) })
+    d.engine.dispatch({ type: 'registerSale', sale: sale('v1', 3) })
+    await d.engine.syncNow()
+    expect(d.stock()).toBe(7)
+    // "Terminar demo" (mantiene productos) y después llega la anulación de esa venta
+    d.engine.dispatch({ type: 'endDemo', keepProducts: true })
+    d.engine.dispatch({ type: 'voidSale', id: 'v1' })
+    await d.engine.syncNow()
+    expect(d.stock()).toBe(7)
+    const [p] = await asUser<{ stock: string }>(USER_A, `select stock from products where id = 'coca'`)
+    expect(Number(p.stock)).toBe(7)
+    d.engine.dispatch({ type: 'registerSale', sale: sale('v2', 1) })
+    await d.engine.syncNow()
+    expect(d.engine.getSnapshot().data?.sales.find((x) => x.id === 'v2')?.number).toBe(1)
+    d.engine.destroy()
+  })
+
+  it('descarga todas las filas aunque muchas tengan la misma hora en el borde de una página', async () => {
+    // 600 ventas a las 10:00, 600 a las 10:01 y 300 a las 10:02 (la fila 1000 cae en un empate)
+    await db.exec(`
+      insert into stores (owner_id) values ('${USER_A}') on conflict do nothing;
+      alter table sales disable trigger touch_updated_at;
+      insert into sales (owner_id, id, number, date, items, total, cost, payment, updated_at)
+      select '${USER_A}', 's' || g, g, now(), '[]'::jsonb, 1000, 500, 'Efectivo',
+             timestamptz '2026-09-01 10:00:00' + make_interval(mins => case when g <= 600 then 0 when g <= 1200 then 1 else 2 end)
+      from generate_series(1, 1500) g;
+      alter table sales enable trigger touch_updated_at;
+    `)
+    const d = device(USER_A)
+    await d.engine.start()
+    expect(d.engine.getSnapshot().data?.sales).toHaveLength(1500)
+    d.engine.destroy()
+  })
+
+  it('un reintento de una operación que falló devuelve el mismo error (no se da por guardada)', async () => {
+    const op = JSON.stringify([{ opId: 'malo-1', type: 'noExiste' }])
+    const [first] = await asUser<{ r: { errors: { error: string }[] } }>(USER_A, 'select public.apply_ops($1::jsonb) as r', [op])
+    const [retry] = await asUser<{ r: { errors: { error: string }[] } }>(USER_A, 'select public.apply_ops($1::jsonb) as r', [op])
+    expect(first.r.errors).toHaveLength(1)
+    expect(retry.r.errors[0]?.error).toBe(first.r.errors[0].error)
+    // Una operación sin opId no rompe las demás del mismo envío
+    const mixed = JSON.stringify([{ type: 'addProduct', product: product() }, { opId: 'ok-1', type: 'addProduct', product: product({ id: 'pan', barcode: '' }) }])
+    const [res] = await asUser<{ r: { errors: unknown[] } }>(USER_A, 'select public.apply_ops($1::jsonb) as r', [mixed])
+    expect(res.r.errors).toHaveLength(1)
+    expect(await asUser(USER_A, `select id from products where id = 'pan'`)).toHaveLength(1)
+  })
 })

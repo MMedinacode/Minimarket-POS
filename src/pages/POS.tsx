@@ -25,7 +25,7 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { beepError, beepOk, chaChing } from '../lib/sound'
 import { readPref, writePref } from '../lib/storage'
-import { cn, formatCLP, formatQty, normalizeText, parseLocaleNumber, roundQty, uid } from '../lib/utils'
+import { cn, formatCLP, formatQty, lineTotal, normalizeText, parseQty, roundQty, uid } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { PAYMENT_METHODS, type PaymentMethod, type Product, type Sale, type SaleItem } from '../types'
 
@@ -101,7 +101,9 @@ export default function POS() {
   const searchRef = useRef<HTMLInputElement>(null)
 
   // El carrito sobrevive a un refresco de página
-  useEffect(() => writePref('cart', cart), [cart])
+  useEffect(() => {
+    writePref('cart', cart)
+  }, [cart])
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
   const byCode = useMemo(() => {
@@ -122,7 +124,7 @@ export default function POS() {
         .filter((l): l is CartLine & { product: Product } => Boolean(l.product)),
     [cart, byId],
   )
-  const total = lines.reduce((a, l) => a + Math.round(l.qty * l.product.price), 0)
+  const total = lines.reduce((a, l) => a + lineTotal(l.qty, l.product.price), 0)
   const itemCount = lines.reduce((a, l) => a + (l.product.unit === 'kg' ? 1 : l.qty), 0)
   const effectiveReceived = payment === 'Efectivo' ? (received ?? total) : null
   const change = effectiveReceived !== null ? effectiveReceived - total : 0
@@ -181,8 +183,11 @@ export default function POS() {
     [byCode, addToCart, toast],
   )
 
-  // Pistola lectora: siempre escuchando mientras no haya formularios abiertos
-  useBarcodeScanner({ onScan: handleCode, enabled: createFor === null && !weightFor && !confirmClear && !customOpen })
+  // Pistola y cámara: siempre escuchando mientras no haya formularios abiertos
+  // (si no, la cámara volvería a leer el código mientras se crea el producto y lo sumaría dos veces)
+  const scanEnabled = createFor === null && !weightFor && !confirmClear && !customOpen
+  useBarcodeScanner({ onScan: handleCode, enabled: scanEnabled })
+  const onCameraCode = useCallback((code: string) => scanEnabled && handleCode(code), [scanEnabled, handleCode])
 
   // ---------- Carrito ----------
 
@@ -328,7 +333,7 @@ export default function POS() {
         ) : (
           <ul className="divide-y divide-line">
             {lines.map(({ product: p, qty }) => {
-              const lineTotal = Math.round(qty * p.price)
+              const subtotal = lineTotal(qty, p.price)
               const step = p.unit === 'kg' ? 0.1 : 1
               return (
                 <li
@@ -341,7 +346,7 @@ export default function POS() {
                     </p>
                     <button
                       type="button"
-                      className="-mt-1 -mr-1.5 grid size-8 shrink-0 place-items-center rounded-lg text-subtle hover:bg-danger-soft hover:text-danger-ink"
+                      className="-mt-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-lg text-subtle hover:bg-danger-soft hover:text-danger-ink"
                       onClick={() => setQty(p.id, 0)}
                       aria-label={`Eliminar ${p.name} de la venta`}
                     >
@@ -356,33 +361,23 @@ export default function POS() {
                   <div className="flex items-center rounded-xl border border-line-strong">
                     <button
                       type="button"
-                      className="grid size-9 place-items-center rounded-l-xl text-muted hover:bg-surface-2 active:bg-line"
+                      className="grid size-11 place-items-center rounded-l-xl text-muted hover:bg-surface-2 active:bg-line"
                       onClick={() => setQty(p.id, qty - step)}
                       aria-label={`Quitar uno de ${p.name}`}
                     >
                       <Minus className="size-4" />
                     </button>
-                    <input
-                      className="tabular h-9 w-14 border-x border-line-strong bg-transparent text-center text-sm font-bold outline-none focus:bg-brand-soft"
-                      inputMode={p.unit === 'kg' ? 'decimal' : 'numeric'}
-                      aria-label={`Cantidad de ${p.name}`}
-                      value={p.unit === 'kg' ? String(qty).replace('.', ',') : qty}
-                      onChange={(e) => {
-                        const n = parseLocaleNumber(e.target.value)
-                        if (n !== null) setQty(p.id, n)
-                      }}
-                      onFocus={(e) => e.target.select()}
-                    />
+                    <QtyInput qty={qty} unit={p.unit} name={p.name} onCommit={(n) => setQty(p.id, n)} />
                     <button
                       type="button"
-                      className="grid size-9 place-items-center rounded-r-xl text-muted hover:bg-surface-2 active:bg-line"
+                      className="grid size-11 place-items-center rounded-r-xl text-muted hover:bg-surface-2 active:bg-line"
                       onClick={() => setQty(p.id, qty + step)}
                       aria-label={`Agregar uno de ${p.name}`}
                     >
                       <Plus className="size-4" />
                     </button>
                   </div>
-                  <p className="tabular w-20 text-right text-sm font-bold">{formatCLP(lineTotal)}</p>
+                  <p className="tabular w-20 text-right text-sm font-bold">{formatCLP(subtotal)}</p>
                   </div>
                 </li>
               )
@@ -533,7 +528,7 @@ export default function POS() {
 
         {cameraOn && (
           <Suspense fallback={<div className="aspect-[4/3] max-h-72 animate-pulse rounded-2xl bg-surface-2" />}>
-            <CameraScanner className="mx-auto w-full max-w-md" onDetected={handleCode} onClose={() => setCameraOn(false)} />
+            <CameraScanner className="mx-auto w-full max-w-md" onDetected={onCameraCode} onClose={() => setCameraOn(false)} />
           </Suspense>
         )}
 
@@ -696,6 +691,48 @@ export default function POS() {
 
 // ---------- Venta libre (monto sin producto registrado) ----------
 
+/**
+ * Cantidad de una línea del carrito. Se escribe completa ("1,5", "12") y se aplica al salir del
+ * campo o con Enter: así se pueden escribir decimales y una tecla suelta (o la pistola) no cambia
+ * la venta a medias. Escape deja la cantidad como estaba.
+ */
+function QtyInput({ qty, unit, name, onCommit }: { qty: number; unit: Product['unit']; name: string; onCommit: (n: number) => void }) {
+  const shown = unit === 'kg' ? String(qty).replace('.', ',') : String(qty)
+  const [draft, setDraft] = useState<string | null>(null) // null = no se está editando
+  const cancelled = useRef(false)
+  const commit = () => {
+    const text = draft
+    setDraft(null)
+    if (text === null || cancelled.current) {
+      cancelled.current = false
+      return
+    }
+    const n = parseQty(text, unit)
+    if (n !== null && n !== qty) onCommit(n)
+  }
+  return (
+    <input
+      className="tabular h-11 w-14 border-x border-line-strong bg-transparent text-center text-sm font-bold outline-none focus:bg-brand-soft"
+      inputMode={unit === 'kg' ? 'decimal' : 'numeric'}
+      aria-label={`Cantidad de ${name}`}
+      value={draft ?? shown}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => {
+        setDraft(shown)
+        e.target.select()
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          cancelled.current = true
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
 function CustomItemModal({
   open,
   onClose,
@@ -760,11 +797,11 @@ function CustomItemModal({
           <div>
             <span className="mb-1.5 block text-sm font-medium text-muted">Cantidad</span>
             <div className="flex h-11 items-center rounded-xl border border-line-strong">
-              <button type="button" className="grid size-10 place-items-center" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Menos">
+              <button type="button" className="grid size-11 place-items-center" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Menos">
                 <Minus className="size-4" />
               </button>
               <span className="tabular w-8 text-center font-bold">{qty}</span>
-              <button type="button" className="grid size-10 place-items-center" onClick={() => setQty((q) => q + 1)} aria-label="Más">
+              <button type="button" className="grid size-11 place-items-center" onClick={() => setQty((q) => q + 1)} aria-label="Más">
                 <Plus className="size-4" />
               </button>
             </div>
@@ -790,7 +827,7 @@ function WeightModal({
   const [value, setValue] = useState('')
   useEffect(() => setValue(''), [product])
   if (!product) return null
-  const kg = parseLocaleNumber(value)
+  const kg = parseQty(value, 'kg')
   const ok = kg !== null && kg > 0
   const submit = () => ok && onConfirm(product, roundQty(kg!, 'kg'))
 
@@ -879,7 +916,7 @@ function ReceiptModal({ sale, onClose }: { sale: Sale | null; onClose: () => voi
             <span className="min-w-0 truncate">
               <span className="tabular text-subtle">{formatQty(it.qty, it.unit)} ×</span> {it.name}
             </span>
-            <span className="tabular font-semibold">{formatCLP(Math.round(it.qty * it.unitPrice))}</span>
+            <span className="tabular font-semibold">{formatCLP(lineTotal(it.qty, it.unitPrice))}</span>
           </li>
         ))}
       </ul>

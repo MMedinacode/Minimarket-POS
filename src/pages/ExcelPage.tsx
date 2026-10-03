@@ -15,7 +15,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react'
-import { Modal } from '../components/ui/Modal'
+import { ConfirmDialog, Modal } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState, Input } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
 import { markBackupDone } from '../lib/backup'
@@ -97,8 +97,13 @@ export default function ExcelPage() {
   }
 
   const template = async () => {
-    const { downloadTemplate } = await import('../lib/excel-io')
-    downloadTemplate()
+    try {
+      const { downloadTemplate } = await import('../lib/excel-io')
+      downloadTemplate()
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo descargar la planilla de ejemplo')
+    }
   }
 
   return (
@@ -151,7 +156,7 @@ export default function ExcelPage() {
 
         {/* Exportar */}
         <Card className="flex flex-col">
-          <CardHeader icon={<FileDown />} title="Exportar a Excel" subtitle="Respaldo completo en un clic" />
+          <CardHeader icon={<FileDown />} title="Exportar a Excel" subtitle="Productos, ventas y gastos en un archivo" />
           <div className="flex flex-1 flex-col p-4 sm:p-5">
             <ul className="space-y-2 text-sm">
               {[
@@ -173,7 +178,7 @@ export default function ExcelPage() {
                 {exporting ? <Loader2 className="animate-spin" /> : <Download />} Descargar Excel actualizado
               </Button>
               <p className="mt-2 text-center text-xs text-subtle">
-                Tip: el archivo exportado se puede volver a importar (sirve como respaldo).
+                Si lo vuelves a cargar, recuperas tus productos con sus precios y cantidades.
               </p>
             </div>
           </div>
@@ -224,29 +229,34 @@ function ImportPreview({ fileName, sheetName, result, onClose }: { fileName: str
   const [clearDemo, setClearDemo] = useState(true)
   const [show, setShow] = useState<'todas' | 'problemas'>('todas')
 
-  const valid = result.rows.filter((r) => r.draft)
+  const valid = useMemo(() => result.rows.filter((r) => r.draft), [result])
   const withErrors = result.rows.filter((r) => r.errors.length)
   const withWarnings = result.rows.filter((r) => r.draft && r.warnings.length)
   const visible = (show === 'todas' ? result.rows : result.rows.filter((r) => r.errors.length || r.warnings.length)).slice(0, 300)
 
+  const [confirmReplace, setConfirmReplace] = useState(false)
+  // Si se borran los ejemplos, se importa como si la caja estuviera vacía (no se mezclan con los de ejemplo)
+  const clearingDemo = isDemo && clearDemo
+  const outcome = useMemo(
+    () => applyImport(clearingDemo ? [] : products, valid.map((r) => r.draft!), mode),
+    [clearingDemo, products, valid, mode],
+  )
+
   const apply = () => {
-    const outcome = applyImport(
-      products,
-      valid.map((r) => r.draft!),
-      mode,
-    )
-    if (isDemo && clearDemo) actions.endDemo(false)
+    if (clearingDemo) actions.endDemo(false)
     // "Reemplazar" manda el inventario completo; "actualizar" solo lo que venía en el Excel
     // (así no se borra un producto que otro dispositivo acaba de crear)
-    if (mode === 'replace' || (isDemo && clearDemo)) actions.setProducts(outcome.products)
+    if (mode === 'replace' || clearingDemo) actions.setProducts(outcome.products)
     else actions.upsertProducts(outcome.changed)
     toast.success(
       mode === 'replace'
-        ? `Inventario reemplazado: ${outcome.added} productos`
+        ? `Inventario reemplazado: ${outcome.products.length} productos`
         : `${outcome.added} productos nuevos y ${outcome.updated} actualizados`,
     )
     onClose()
   }
+  // "Reemplazar todo" que elimina productos: se confirma antes (acción peligrosa)
+  const tryApply = () => (mode === 'replace' && outcome.removed > 0 ? setConfirmReplace(true) : apply())
 
   if (result.missingColumns.length) {
     return (
@@ -278,12 +288,23 @@ function ImportPreview({ fileName, sheetName, result, onClose }: { fileName: str
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={apply} disabled={!valid.length}>
+          <Button variant="primary" onClick={tryApply} disabled={!valid.length}>
             <CheckCircle2 /> Importar {valid.length} productos
           </Button>
         </>
       }
     >
+      <ConfirmDialog
+        open={confirmReplace}
+        onClose={() => setConfirmReplace(false)}
+        danger
+        title="¿Reemplazar todo el inventario?"
+        confirmLabel={`Sí, eliminar ${outcome.removed}`}
+        onConfirm={apply}
+      >
+        Se eliminarán <strong className="text-fg">{outcome.removed} productos</strong> que tienes ahora y no están en el Excel, con su
+        stock. Si solo quieres agregar o actualizar, elige «Actualizar y agregar».
+      </ConfirmDialog>
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryBox tone="ok" icon={<CheckCircle2 />} value={valid.length} label="listos para importar" />
         <SummaryBox tone="warn" icon={<AlertTriangle />} value={withWarnings.length} label="con advertencias (se importan)" />

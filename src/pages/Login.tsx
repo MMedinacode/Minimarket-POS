@@ -13,9 +13,9 @@ import {
   startSession,
   verifyPassword,
 } from '../lib/auth'
-import { clearData, freezeStorage, writePref } from '../lib/storage'
+import { clearData, freezeStorage, loadData, writePref } from '../lib/storage'
 import { supportUnlockAvailable } from '../lib/support'
-import { useCloud } from '../store/AppStore'
+import { deviceAccount, useCloud } from '../store/AppStore'
 
 interface Props {
   businessName: string
@@ -153,9 +153,11 @@ function ForgotModal({ open, onClose, onForgot, businessName }: { open: boolean;
   const [view, setView] = useState<ForgotView>('menu')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [wipeError, setWipeError] = useState('')
   if (!open) return null
 
-  const withAccount = cloud.enabled
+  // Solo si este equipo tiene una cuenta guardada (y solo esa cuenta sirve)
+  const withAccount = cloud.enabled && deviceAccount() !== null
   const withSupport = supportUnlockAvailable()
   const close = () => {
     setView('menu')
@@ -171,11 +173,23 @@ function ForgotModal({ open, onClose, onForgot, businessName }: { open: boolean;
 
   const eraseDevice = async () => {
     setBusy(true)
+    setWipeError('')
     freezeStorage() // que nada vuelva a escribir los datos mientras se borran
-    // Si había una cuenta abierta se cierra: si no, se podría entrar a sus datos creando otra clave
-    if (cloud.user) await cloud.api.signOut(true).catch(() => {})
-    await clearData()
+    try {
+      // Si había una cuenta abierta se cierra: si no, se podría entrar a sus datos creando otra clave
+      if (cloud.user) await cloud.api.signOut(true)
+      await clearData()
+      // Se comprueba que no quedó nada antes de permitir una clave nueva
+      if (await loadData()) throw new Error('quedaron datos')
+    } catch (err) {
+      console.error('No se pudo borrar', err)
+      freezeStorage(false)
+      setBusy(false)
+      setWipeError('No se pudo borrar todo. Cierra la caja, ábrela de nuevo e inténtalo otra vez. Tu clave sigue siendo la misma.')
+      return
+    }
     writePref('cart', null)
+    writePref('cuentaEquipo', null)
     forgetPassword()
     location.reload()
   }
@@ -232,7 +246,7 @@ function ForgotModal({ open, onClose, onForgot, businessName }: { open: boolean;
       {view === 'cuenta' && (
         <div>
           {back}
-          <AccountPanel loginOnly onSignedIn={unlocked} />
+          <AccountPanel loginOnly ownerCheck onSignedIn={unlocked} />
         </div>
       )}
 
@@ -251,6 +265,11 @@ function ForgotModal({ open, onClose, onForgot, businessName }: { open: boolean;
             <strong className="font-mono text-fg">BORRAR</strong> para confirmar.
           </p>
           <Input className="mt-3" value={text} onChange={(e) => setText(e.target.value)} autoFocus aria-label="Escribe BORRAR para confirmar" />
+          {wipeError && (
+            <p role="alert" className="mt-2 text-sm font-medium text-danger-ink">
+              {wipeError}
+            </p>
+          )}
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setView('menu')}>
               Volver

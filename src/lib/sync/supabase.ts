@@ -31,6 +31,19 @@ export function getSupabase(): Promise<SupabaseClient> {
   return clientPromise
 }
 
+/**
+ * Cliente aparte, sin guardar sesión: sirve para comprobar el correo y la contraseña de la
+ * cuenta de la caja SIN reemplazar la sesión abierta (si alguien prueba con otra cuenta,
+ * la de la caja sigue abierta y no se entra).
+ */
+export async function createCheckClient(): Promise<SupabaseClient> {
+  if (!cloudEnabled) throw new Error('Supabase no está configurado')
+  const { createClient } = await import('@supabase/supabase-js')
+  return createClient(SUPABASE_URL!, SUPABASE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'mm-pos:comprobar' },
+  })
+}
+
 /** URL a la que vuelven los links de los correos (confirmación, nueva contraseña) */
 export function appUrl(): string {
   return `${window.location.origin}${window.location.pathname}`

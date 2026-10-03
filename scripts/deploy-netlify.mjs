@@ -5,7 +5,7 @@
 // Se compila aquí, con tu .env, para que el número y la llave de soporte nunca pasen por GitHub.
 import { execSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { warnMissingSupport } from './revisar-env.mjs'
+import { checkEnvBeforeDeploy } from './revisar-env.mjs'
 
 const run = (cmd) => execSync(cmd, { stdio: 'inherit' })
 
@@ -13,7 +13,7 @@ if (!existsSync('.netlify/state.json')) {
   console.error('\n✗ Este proyecto aún no está enlazado a un sitio de Netlify. Ver instrucciones al inicio de este archivo.\n')
   process.exit(1)
 }
-warnMissingSupport()
+checkEnvBeforeDeploy()
 run('npm run build')
 run('npx -y netlify-cli deploy --prod --dir dist --no-build')
 console.log('\nListo: https://caja-minimarket.netlify.app')

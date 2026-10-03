@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ClipboardList, Copy, MessageCircle, Share2 } from 'lucide-react'
 import { isAlert, suggestOrderQty } from '../lib/stock'
-import { cn, formatCLP, formatDate, formatQty, parseLocaleNumber } from '../lib/utils'
+import { cn, formatCLP, formatDate, formatQty, parseQty } from '../lib/utils'
 import { useData, useDerived } from '../store/AppStore'
 import { Modal } from './ui/Modal'
 import { Button, EmptyState, Input } from './ui/primitives'
@@ -37,7 +37,7 @@ function Inner({ onClose }: { onClose: () => void }) {
   )
 
   const lines = candidates
-    .map(({ p }) => ({ p, n: parseLocaleNumber(qty[p.id] ?? '') ?? 0 }))
+    .map(({ p }) => ({ p, n: parseQty(qty[p.id] ?? '', p.unit) ?? 0 }))
     .filter((l) => l.n > 0)
   const cost = lines.reduce((a, l) => a + l.n * l.p.cost, 0)
 
@@ -115,7 +115,7 @@ function Inner({ onClose }: { onClose: () => void }) {
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
           <ul className="divide-y divide-line rounded-xl border border-line">
             {candidates.map(({ p }) => {
-              const n = parseLocaleNumber(qty[p.id] ?? '') ?? 0
+              const n = parseQty(qty[p.id] ?? '', p.unit) ?? 0
               return (
                 <li key={p.id} className={cn('flex items-center gap-3 px-3 py-2', n <= 0 && 'opacity-50')}>
                   <div className="min-w-0 flex-1">

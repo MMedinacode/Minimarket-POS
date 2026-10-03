@@ -4,7 +4,7 @@ import { allCategories, inferCategory } from '../lib/categories'
 import { nextInternalCode } from '../lib/ean13'
 import { beepOk } from '../lib/sound'
 import { getStockInfo, suggestRotation } from '../lib/stock'
-import { cn, formatCLP, parseLocaleNumber, roundQty } from '../lib/utils'
+import { cn, formatCLP, parseQty, roundQty } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { ROTATION_LABEL, ROTATIONS, type Product, type Rotation, type Unit } from '../types'
 import { ConfirmDialog, Modal } from './ui/Modal'
@@ -72,8 +72,8 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
     const errs: Record<string, string> = {}
     const cleanName = name.trim().replace(/\s+/g, ' ')
     const code = barcode.trim()
-    const stockN = stock.trim() ? parseLocaleNumber(stock) : 0
-    const minN = minStock.trim() ? parseLocaleNumber(minStock) : null
+    const stockN = stock.trim() ? parseQty(stock, unit) : 0
+    const minN = minStock.trim() ? parseQty(minStock, unit) : null
 
     if (!cleanName) errs.name = 'Escribe el nombre del producto'
     if (!price || price <= 0) errs.price = 'Escribe a cuánto lo vendes'

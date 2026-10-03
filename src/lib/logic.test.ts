@@ -6,7 +6,7 @@ import { dailySeries, marginPct, salesByHour, slowMovers, summarizeDay, topProdu
 import { allCategories, inferCategory, matchCategory } from './categories'
 import { applyImport, buildSheets, parseInventoryRows } from './excel-model'
 import { buildVelocityMap, getStockInfo, suggestOrderQty } from './stock'
-import { dayKey, formatCLP, parseLocaleNumber } from './utils'
+import { dayKey, formatCLP, lineTotal, parseLocaleNumber, parseQty } from './utils'
 
 const product = (over: Partial<Product> = {}): Product => ({
   id: 'p1',
@@ -49,6 +49,17 @@ describe('utils', () => {
     expect(parseLocaleNumber('1.990')).toBe(1990)
     expect(parseLocaleNumber('12.500.000')).toBe(12500000)
     expect(parseLocaleNumber('0,5')).toBe(0.5)
+    // Medio kilo escrito con punto (teclado numérico): no son puntos de miles
+    expect(parseLocaleNumber('0.500')).toBe(0.5)
+    expect(parseLocaleNumber('0.250')).toBe(0.25)
+    expect(parseLocaleNumber('1.250')).toBe(1250)
+    // Total por línea exacto: 0,145 kg × $1.500 = $217,5 → $218
+    expect(lineTotal(0.145, 1500)).toBe(218)
+    expect(lineTotal(3, 990)).toBe(2970)
+    // En kilos el punto es decimal; en unidades, de miles
+    expect(parseQty('1.250', 'kg')).toBe(1.25)
+    expect(parseQty('1.200', 'un')).toBe(1200)
+    expect(parseQty('0,5', 'kg')).toBe(0.5)
     expect(parseLocaleNumber('1.234,5')).toBe(1234.5)
     expect(parseLocaleNumber('1.5')).toBe(1.5)
     expect(parseLocaleNumber('abc')).toBeNull()
@@ -250,6 +261,21 @@ describe('Excel: importación', () => {
     expect(merged.products.find((p) => p.barcode === '111')).toMatchObject({ id: 'x', name: 'Actualizado', price: 900 })
     const replaced = applyImport(existing, drafts.slice(1), 'replace')
     expect(replaced.products.map((p) => p.name)).toEqual(['Nuevo'])
+    expect(replaced.removed).toBe(1)
+    // Reemplazar conserva el id de lo que ya existía (las ventas antiguas siguen apuntando a él)
+    const kept = applyImport(existing, drafts, 'replace')
+    expect(kept.products.find((p) => p.barcode === '111')).toMatchObject({ id: 'x', name: 'Actualizado' })
+    expect(kept).toMatchObject({ added: 1, updated: 1, removed: 0 })
+  })
+  it('una lista con solo nombre y precio no borra el stock ni el costo de lo que ya existe', () => {
+    const existing = [product({ id: 'x', barcode: '111', name: 'Pan', price: 2000, cost: 1200, stock: 7.5, unit: 'kg', category: 'Panadería' })]
+    const r = parseInventoryRows([['CodigoBarras', 'Nombre', 'PrecioVenta'], ['111', 'Pan', 2200]], known)
+    const merged = applyImport(existing, [r.rows[0].draft!], 'merge')
+    expect(merged.products[0]).toMatchObject({ id: 'x', price: 2200, cost: 1200, stock: 7.5, unit: 'kg', category: 'Panadería' })
+    expect(merged.products[0]).not.toHaveProperty('keep')
+    // Un producto nuevo con la misma lista queda con valores por defecto
+    const nuevo = applyImport([], [r.rows[0].draft!], 'merge').products[0]
+    expect(nuevo).toMatchObject({ cost: 0, stock: 0, unit: 'un' })
   })
   it('el Excel exportado se puede volver a importar sin perder datos', () => {
     const data = buildDemoData()

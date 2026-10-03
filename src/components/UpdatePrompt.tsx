@@ -5,7 +5,7 @@ import { Button } from './ui/primitives'
 /**
  * La app queda guardada en el dispositivo (funciona sin internet).
  * Cuando se publica una versión nueva, se avisa en vez de recargar solo:
- * así nunca se interrumpe una venta a la mitad.
+ * así nunca se interrumpe una venta a la mitad. En celular va arriba para no tapar "Cobrar".
  */
 export function UpdatePrompt() {
   const {
@@ -20,7 +20,7 @@ export function UpdatePrompt() {
 
   if (!needRefresh) return null
   return (
-    <div className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[90] mx-auto flex max-w-md animate-pop-in items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-xl lg:bottom-4">
+    <div className="fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top))] z-[90] mx-auto flex max-w-md animate-pop-in items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-xl lg:top-auto lg:bottom-4">
       <RefreshCw className="size-5 shrink-0 text-info-ink" />
       <p className="flex-1 text-sm font-medium">Hay una versión nueva de la app.</p>
       <Button size="sm" variant="ghost" onClick={() => setNeedRefresh(false)}>

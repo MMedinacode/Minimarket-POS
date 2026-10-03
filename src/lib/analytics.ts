@@ -1,6 +1,6 @@
 // Cálculos del dashboard y de caja. Todo es puro (sin React) para poder testearlo.
 import { ALL_PAYMENT_METHODS, type Expense, type PaymentMethod, type Product, type Sale, type Unit } from '../types'
-import { addDays, dayKey, formatDayShort, parseDayKey, startOfDay } from './utils'
+import { addDays, dayKey, formatDayShort, lineTotal, parseDayKey, startOfDay } from './utils'
 
 export const activeSales = (sales: Sale[]) => sales.filter((s) => !s.voided)
 
@@ -135,7 +135,7 @@ export function rankProducts(sales: Sale[], from: Date, to: Date = new Date()): 
     const t = new Date(s.date).getTime()
     if (t < a || t > b) continue
     for (const it of s.items) {
-      const line = Math.round(it.qty * it.unitPrice)
+      const line = lineTotal(it.qty, it.unitPrice)
       const row = map.get(it.productId) ?? {
         productId: it.productId,
         name: it.name,

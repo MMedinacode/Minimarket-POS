@@ -83,12 +83,13 @@ create table if not exists public.applied_ops (
 create index if not exists products_sync_idx on public.products (owner_id, updated_at);
 create index if not exists sales_sync_idx on public.sales (owner_id, updated_at);
 create index if not exists expenses_sync_idx on public.expenses (owner_id, updated_at);
+create index if not exists applied_ops_age_idx on public.applied_ops (owner_id, applied_at);
 
 -- ---------- updated_at automático ------------------------------------
 -- La hora la pone SIEMPRE el servidor: los relojes de los celulares no importan.
 
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   new.updated_at := clock_timestamp();
   return new;
@@ -116,6 +117,7 @@ begin
     execute format(
       'create policy "solo_el_dueno" on public.%I for all to authenticated
        using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()))', t);
+    execute format('revoke all on public.%I from authenticated', t);
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
     execute format('revoke all on public.%I from anon', t);
   end loop;
@@ -125,7 +127,7 @@ end $$;
 
 -- Redondeo igual al de la app: unidades enteras, kilos con 3 decimales
 create or replace function public.round_qty(q numeric, unit text) returns numeric
-language sql immutable as $$
+language sql immutable set search_path = '' as $$
   select round(q, case when unit = 'kg' then 3 else 0 end)
 $$;
 
@@ -175,17 +177,31 @@ declare
   allow_neg boolean;
   seq       integer;
   q         numeric;
+  prev_err  text;
   errors    jsonb := '[]'::jsonb;
 begin
   if uid is null then
     raise exception 'Debes iniciar sesión';
   end if;
   insert into stores (owner_id) values (uid) on conflict (owner_id) do nothing;
+  -- Una sola subida a la vez por cuenta: dos cajas que vuelven a tener internet al mismo
+  -- tiempo se ordenan en vez de bloquearse entre sí (deadlock)
+  perform 1 from stores where owner_id = uid for update;
+  -- El registro de reintentos solo hace falta unos meses
+  delete from applied_ops where owner_id = uid and applied_at < now() - interval '90 days';
 
   for op in select value from jsonb_array_elements(ops) loop
-    -- Idempotencia: si esta operación ya se aplicó, se salta
+    if op->>'opId' is null then
+      errors := errors || jsonb_build_object('opId', null, 'type', op->>'type', 'error', 'Operación sin opId');
+      continue;
+    end if;
+    -- Idempotencia: si esta operación ya se aplicó, se salta (y si había fallado, se repite el error)
     insert into applied_ops (owner_id, op_id) values (uid, op->>'opId') on conflict do nothing;
     if not found then
+      select error into prev_err from applied_ops where owner_id = uid and op_id = op->>'opId';
+      if prev_err is not null then
+        errors := errors || jsonb_build_object('opId', op->>'opId', 'type', op->>'type', 'error', prev_err);
+      end if;
       continue;
     end if;
 
@@ -259,8 +275,9 @@ begin
           end if;
 
         when 'voidSale' then
+          -- Una venta borrada ("Terminar demo", "Borrar todo") ya no devuelve stock, igual que en la app
           update sales set voided = true, voided_at = clock_timestamp()
-          where owner_id = uid and id = op->>'id' and not voided
+          where owner_id = uid and id = op->>'id' and not voided and not deleted
           returning items into p;
           if found then
             for item in select value from jsonb_array_elements(p) loop
@@ -285,6 +302,7 @@ begin
         when 'endDemo' then
           update sales set deleted = true where owner_id = uid and not deleted;
           update expenses set deleted = true where owner_id = uid and not deleted;
+          update stores set sale_seq = 0 where owner_id = uid; -- la app vuelve a numerar desde 1
           if not coalesce((op->>'keepProducts')::boolean, true) then
             update products set deleted = true where owner_id = uid and not deleted;
           end if;
@@ -293,6 +311,7 @@ begin
           update products set deleted = true where owner_id = uid and not deleted;
           update sales set deleted = true where owner_id = uid and not deleted;
           update expenses set deleted = true where owner_id = uid and not deleted;
+          update stores set sale_seq = 0 where owner_id = uid;
 
         when 'importAll' then
           -- Subir los datos que había en un dispositivo antes de crear la cuenta
@@ -312,13 +331,18 @@ begin
           on conflict (owner_id, id) do nothing;
           update stores set
             settings = settings || coalesce(op->'settings', '{}'::jsonb),
-            sale_seq = greatest(sale_seq, coalesce((select max(number) from sales where owner_id = uid), 0))
+            sale_seq = greatest(sale_seq, coalesce((select max(number) from sales where owner_id = uid and not deleted), 0))
           where owner_id = uid;
 
         else
           raise exception 'Operación desconocida: %', kind;
       end case;
     exception when others then
+      -- Errores pasajeros (bloqueos, falta de recursos): se cancela toda la subida y la app la
+      -- reintenta sola. Si no, la operación quedaría marcada como fallida para siempre.
+      if sqlstate in ('40P01', '40001', '55P03') or sqlstate like '53%' then
+        raise;
+      end if;
       -- Una operación con error no bloquea a las siguientes: se anota y se sigue
       update applied_ops set error = sqlerrm where owner_id = uid and op_id = op->>'opId';
       errors := errors || jsonb_build_object('opId', op->>'opId', 'type', kind, 'error', sqlerrm);
@@ -346,17 +370,31 @@ begin
   end if;
   return jsonb_build_object(
     'store', (select to_jsonb(s) from stores s where s.owner_id = uid),
+    -- Cada página termina en la hora de su fila N° max_rows e incluye TODAS las filas con esa misma
+    -- hora (si no, las empatadas en el borde se perderían). La primera descarga no trae borradas.
     'products', coalesce((
       select jsonb_agg(to_jsonb(t) order by t.updated_at) from (
-        select * from products where owner_id = uid and updated_at > since_p order by updated_at limit max_rows
+        select * from products
+        where owner_id = uid and updated_at > since_p and (not deleted or cursors ? 'products')
+          and updated_at <= coalesce((select updated_at from products
+                where owner_id = uid and updated_at > since_p and (not deleted or cursors ? 'products')
+                order by updated_at offset max_rows - 1 limit 1), 'infinity')
       ) t), '[]'::jsonb),
     'sales', coalesce((
       select jsonb_agg(to_jsonb(t) order by t.updated_at) from (
-        select * from sales where owner_id = uid and updated_at > since_s order by updated_at limit max_rows
+        select * from sales
+        where owner_id = uid and updated_at > since_s and (not deleted or cursors ? 'sales')
+          and updated_at <= coalesce((select updated_at from sales
+                where owner_id = uid and updated_at > since_s and (not deleted or cursors ? 'sales')
+                order by updated_at offset max_rows - 1 limit 1), 'infinity')
       ) t), '[]'::jsonb),
     'expenses', coalesce((
       select jsonb_agg(to_jsonb(t) order by t.updated_at) from (
-        select * from expenses where owner_id = uid and updated_at > since_e order by updated_at limit max_rows
+        select * from expenses
+        where owner_id = uid and updated_at > since_e and (not deleted or cursors ? 'expenses')
+          and updated_at <= coalesce((select updated_at from expenses
+                where owner_id = uid and updated_at > since_e and (not deleted or cursors ? 'expenses')
+                order by updated_at offset max_rows - 1 limit 1), 'infinity')
       ) t), '[]'::jsonb)
   );
 end $$;

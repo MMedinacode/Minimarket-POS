@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowLeft, Eye, EyeOff, Loader2, MailCheck } from 'lucide-react'
-import { useCloud } from '../store/AppStore'
+import { deviceAccount, useCloud } from '../store/AppStore'
 import { Button, Field, Input, Segmented } from './ui/primitives'
 
 type View = 'login' | 'signup' | 'reset' | 'sent-confirm' | 'sent-reset'
@@ -13,15 +13,22 @@ export function AccountPanel({
   onSignedIn,
   initialView = 'login',
   loginOnly,
+  ownerCheck,
 }: {
   onSignedIn?: () => void
   initialView?: 'login' | 'signup'
   /** Solo iniciar sesión (sin la pestaña "Crear cuenta") */
   loginOnly?: boolean
+  /**
+   * Para crear una clave nueva: solo sirve la cuenta de ESTE equipo (el correo viene escrito y
+   * no se puede cambiar) y se comprueba sin reemplazar la sesión abierta.
+   */
+  ownerCheck?: boolean
 }) {
   const { api } = useCloud()
+  const owner = ownerCheck ? deviceAccount() : null
   const [view, setView] = useState<View>(initialView)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(owner?.email ?? '')
   const [password, setPassword] = useState('')
   const [business, setBusiness] = useState('')
   const [show, setShow] = useState(false)
@@ -37,7 +44,7 @@ export function AccountPanel({
     setBusy(true)
     try {
       if (view === 'login') {
-        const err = await api.signIn(email, password)
+        const err = ownerCheck ? await api.verifyOwner(email, password) : await api.signIn(email, password)
         if (err) setError(err)
         else onSignedIn?.()
       } else if (view === 'signup') {
@@ -84,7 +91,7 @@ export function AccountPanel({
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {loginOnly && view === 'login' ? (
-        <p className="text-muted">Escribe el correo y la contraseña de tu cuenta.</p>
+        <p className="text-muted">{owner ? 'Escribe la contraseña de la cuenta de esta caja.' : 'Escribe el correo y la contraseña de tu cuenta.'}</p>
       ) : view === 'reset' ? (
         <button type="button" className="flex items-center gap-1 text-sm font-semibold text-muted hover:text-fg" onClick={() => setView('login')}>
           <ArrowLeft className="size-4" /> Volver
@@ -108,7 +115,15 @@ export function AccountPanel({
       {view === 'reset' && <p className="text-sm text-muted">Te enviaremos un link para crear una contraseña nueva.</p>}
 
       <Field label="Correo" htmlFor="acc-email">
-        <Input id="acc-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.cl" />
+        <Input
+          id="acc-email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          readOnly={Boolean(owner) && view === 'login'}
+          placeholder="tu@correo.cl"
+        />
       </Field>
 
       {view !== 'reset' && (

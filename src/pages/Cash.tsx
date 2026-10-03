@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
 import { summarizeDay } from '../lib/analytics'
-import { addDays, cn, dayKey, formatCLP, formatDateLong, formatQty, formatTime, parseDayKey } from '../lib/utils'
+import { addDays, cn, dayKey, formatCLP, formatDateLong, formatQty, formatTime, lineTotal, parseDayKey } from '../lib/utils'
 import { useActions, useData } from '../store/AppStore'
 import { ALL_PAYMENT_METHODS, type Sale } from '../types'
 
@@ -216,7 +216,7 @@ function SaleRow({ sale, onVoid }: { sale: Sale; onVoid: () => void }) {
                 <span className="min-w-0 truncate">
                   <span className="tabular text-subtle">{formatQty(it.qty, it.unit)} ×</span> {it.name}
                 </span>
-                <span className="tabular">{formatCLP(Math.round(it.qty * it.unitPrice))}</span>
+                <span className="tabular">{formatCLP(lineTotal(it.qty, it.unitPrice))}</span>
               </li>
             ))}
           </ul>

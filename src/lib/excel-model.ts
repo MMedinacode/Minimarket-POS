@@ -5,7 +5,7 @@ import type { AppData, Expense, Product, Rotation, Sale, Settings, Unit } from '
 import { activeSales, marginPct } from './analytics'
 import { inferCategory, matchCategory } from './categories'
 import { STATUS_LABEL, buildVelocityMap, getStockInfo } from './stock'
-import { dayKey, formatTime, normalizeText, parseLocaleNumber, roundQty, uid } from './utils'
+import { dayKey, formatTime, lineTotal, normalizeText, parseLocaleNumber, roundQty, uid } from './utils'
 
 /** Columnas oficiales del Excel de inventario (en este orden) */
 export const INVENTORY_COLUMNS = [
@@ -73,7 +73,15 @@ export interface ProductDraft {
   unit: Unit
   rotation: Rotation
   minStock: number | null
+  /**
+   * Datos que el Excel NO traía (columna ausente o celda vacía) y se rellenaron con un valor por
+   * defecto. Si el producto ya existe, se conservan los suyos: una lista del proveedor con solo
+   * nombre y precio no debe dejar el stock ni el costo en 0.
+   */
+  keep?: KeepField[]
 }
+
+export type KeepField = 'cost' | 'stock' | 'unit' | 'rotation' | 'category' | 'minStock'
 
 export interface ImportRow {
   /** Número de fila tal como se ve en Excel */
@@ -176,20 +184,26 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
     const price = parseLocaleNumber(get(row, 'price'))
     if (price === null || price <= 0) errors.push('Precio de venta inválido')
 
+    const keep: KeepField[] = []
     let cost = parseLocaleNumber(get(row, 'cost'))
     if (cost === null || cost < 0) {
-      warnings.push('Sin costo: se dejó en $0')
+      warnings.push('Sin costo: si el producto ya existe se mantiene; si es nuevo, queda en $0')
+      keep.push('cost')
       cost = 0
     } else if (price !== null && cost > price) {
       warnings.push('El costo es mayor que el precio (se vende a pérdida)')
     }
 
     let unit = parseUnit(get(row, 'unit'))
-    if (!unit) unit = 'un'
+    if (!unit) {
+      keep.push('unit')
+      unit = 'un'
+    }
 
     let stock = parseLocaleNumber(get(row, 'stock'))
     if (stock === null) {
-      warnings.push('Sin stock: se dejó en 0')
+      warnings.push('Sin stock: si el producto ya existe se mantiene; si es nuevo, queda en 0')
+      keep.push('stock')
       stock = 0
     } else if (stock < 0) {
       warnings.push('Stock negativo: se dejó en 0')
@@ -201,6 +215,7 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
     let rotation = parseRotation(get(row, 'rotation'))
     if (!rotation) {
       if (String(get(row, 'rotation') ?? '').trim()) warnings.push('Rotación no reconocida: se usó Media')
+      keep.push('rotation')
       rotation = 'Media'
     }
 
@@ -208,10 +223,12 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
     if (!category && name) {
       category = inferCategory(name).category
       warnings.push(`Categoría asignada automáticamente: ${category}`)
+      keep.push('category')
     }
 
     const minRaw = get(row, 'minStock')
     const minStock = String(minRaw ?? '').trim() === '' ? null : parseLocaleNumber(minRaw)
+    if (minStock === null) keep.push('minStock')
 
     // Solo las filas válidas "reservan" su código: si la fila 5 tiene un error,
     // una fila 6 correcta con el mismo código no debe rechazarse por duplicada.
@@ -234,10 +251,12 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
             category,
             cost: Math.round(cost),
             price: Math.round(price!),
-            stock: roundQty(stock, unit),
+            // Sin columna de unidad el redondeo final se hace al combinar (puede ser un producto por kilo)
+            stock: keep.includes('unit') ? Math.round(stock * 1000) / 1000 : roundQty(stock, unit),
             unit,
             rotation,
             minStock: minStock !== null && minStock >= 0 ? minStock : null,
+            keep,
           },
     })
   }
@@ -254,20 +273,22 @@ export interface ImportOutcome {
   updated: number
   /** Solo los productos que vinieron en el Excel (nuevos o actualizados) */
   changed: Product[]
+  /** "Reemplazar todo": cuántos productos que ya había se eliminan por no estar en el Excel */
+  removed: number
 }
 
-/**
- * Aplica los productos del Excel al inventario.
- * - merge: actualiza los que ya existen (por código, o por nombre si no tienen código) y agrega los nuevos.
- * - replace: el inventario queda exactamente como el Excel.
- */
 export function applyImport(existing: Product[], drafts: ProductDraft[], mode: ImportMode, now = new Date()): ImportOutcome {
   const iso = now.toISOString()
-  const make = (d: ProductDraft): Product => ({ ...d, id: uid(), createdAt: iso, updatedAt: iso })
-
-  if (mode === 'replace') {
-    const products = drafts.map(make)
-    return { products, added: drafts.length, updated: 0, changed: products }
+  const make = (d: ProductDraft): Product => {
+    const { keep: _keep, ...fields } = d
+    return { ...fields, stock: roundQty(fields.stock, fields.unit), id: uid(), createdAt: iso, updatedAt: iso }
+  }
+  /** Mezcla el Excel sobre un producto que ya existe, conservando lo que el Excel no traía */
+  const mergeInto = (prev: Product, d: ProductDraft): Product => {
+    const { keep = [], ...fields } = d
+    const next: Product = { ...prev, ...fields, barcode: fields.barcode || prev.barcode, updatedAt: iso }
+    for (const k of keep) (next as unknown as Record<string, unknown>)[k] = prev[k]
+    return { ...next, stock: roundQty(next.stock, next.unit) }
   }
 
   const products = [...existing]
@@ -289,8 +310,7 @@ export function applyImport(existing: Product[], drafts: ProductDraft[], mode: I
       if (byNameIdx !== undefined && (!d.barcode || !products[byNameIdx].barcode)) idx = byNameIdx
     }
     if (idx !== undefined) {
-      const prev = products[idx]
-      products[idx] = { ...prev, ...d, barcode: d.barcode || prev.barcode, updatedAt: iso }
+      products[idx] = mergeInto(products[idx], d)
       if (d.barcode) byCode.set(d.barcode, idx)
       updated++
     } else {
@@ -302,7 +322,16 @@ export function applyImport(existing: Product[], drafts: ProductDraft[], mode: I
     }
     touched.add(idx ?? products.length - 1)
   }
-  return { products, added, updated, changed: [...touched].map((i) => products[i]) }
+  const changed = [...touched].map((i) => products[i])
+
+  if (mode === 'replace') {
+    // Queda exactamente lo del Excel, pero un producto que ya existía conserva su id: así las
+    // ventas antiguas siguen apuntando a él (anular una venta devuelve el stock y "se vende
+    // mucho" no parte de cero).
+    const kept = [...touched].filter((i) => i < existing.length).length
+    return { products: changed, added, updated, changed, removed: existing.length - kept }
+  }
+  return { products, added, updated, changed, removed: 0 }
 }
 
 // ---------- Hojas de exportación (también las usa el visor) ----------
@@ -363,8 +392,8 @@ export function salesSheet(sales: Sale[]): SheetData {
   const sorted = [...sales].sort((a, b) => b.date.localeCompare(a.date))
   for (const s of sorted) {
     for (const it of s.items) {
-      const subtotal = Math.round(it.qty * it.unitPrice)
-      const cost = Math.round(it.qty * it.unitCost)
+      const subtotal = lineTotal(it.qty, it.unitPrice)
+      const cost = lineTotal(it.qty, it.unitCost)
       rows.push([
         dayKey(s.date),
         formatTime(s.date),

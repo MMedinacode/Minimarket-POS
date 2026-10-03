@@ -3,13 +3,16 @@ import { AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '../components/ui/primitives'
 import { redeemSupportToken, SUPPORT_ERROR, type SupportResult } from '../lib/support'
 
-// Cada link se revisa una sola vez (React en modo desarrollo monta dos veces los componentes)
+// React en modo desarrollo monta dos veces los componentes: mientras un link se está revisando,
+// la segunda vez espera la misma revisión. Al terminar se olvida, así el mismo link pegado otra
+// vez se vuelve a revisar (y ya sale "se usó"): nunca sirve dos veces.
 const checks = new Map<string, Promise<SupportResult>>()
 function checkOnce(token: string): Promise<SupportResult> {
   let p = checks.get(token)
   if (!p) {
     p = redeemSupportToken(token)
     checks.set(token, p)
+    void p.finally(() => checks.delete(token))
   }
   return p
 }

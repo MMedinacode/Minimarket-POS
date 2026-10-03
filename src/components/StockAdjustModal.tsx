@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, ClipboardCheck, Minus, Plus } from 'lucide-react'
-import { cn, formatQty, parseLocaleNumber, roundQty } from '../lib/utils'
+import { cn, formatQty, parseQty, roundQty } from '../lib/utils'
 import type { StockAdjustMode } from '../store/reducer'
 import { useActions } from '../store/AppStore'
 import type { Product } from '../types'
@@ -25,7 +25,7 @@ function Inner({ product, onClose }: { product: Product; onClose: () => void }) 
   const toast = useToast()
   const [mode, setMode] = useState<StockAdjustMode>('add')
   const [qty, setQty] = useState('')
-  const n = parseLocaleNumber(qty)
+  const n = parseQty(qty, product.unit)
   const valid = n !== null && n >= 0 && (mode === 'set' || n > 0)
   const next = !valid ? null : roundQty(Math.max(0, mode === 'set' ? n! : mode === 'add' ? product.stock + n! : product.stock - n!), product.unit)
   const current = MODES.find((m) => m.value === mode)!

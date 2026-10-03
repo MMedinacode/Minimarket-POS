@@ -21,7 +21,7 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 60 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 64 tests (incluye SQL real en PGlite, sin Docker)
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
 npm run deploy:netlify   # build local (con .env) + publica en caja-minimarket.netlify.app
@@ -59,6 +59,9 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `components/CashCountModal.tsx` — "Contar el cajón" en Caja: sencillo del inicio (pref local) + `expectedCash`;
   no guarda nada en los datos (`drawerDifference` en `analytics.ts`).
 - `ENTREGA.md` — lista paso a paso para instalar la caja en un negocio (para el dueño del proyecto).
+- `src/lib/storage.ts` — IndexedDB con reintento (reabre la conexión) y copia COMPLETA en localStorage con
+  `savedAt` si IndexedDB falla; al cargar se usa la copia más nueva. `saveData` LANZA si no puede guardar en
+  ningún lado y `AppStore` muestra un aviso rojo fijo (nunca perder ventas en silencio).
 - `src/lib/backup.ts` + `components/BackupReminder.tsx` — sin cuenta, Inicio recuerda cada 7 días descargar
   el Excel (se marca también al exportar desde Excel y respaldo). Con cuenta no aparece.
 
@@ -75,8 +78,14 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
    Jamás la secret key en el front.
 5. Crear/restablecer la clave de la caja con una cuenta abierta exige re-ingresar la contraseña de la cuenta
    o un link de soporte firmado (si no, cualquiera con el equipo podría entrar a los datos de la nube).
-   "Borrar todo" cierra la cuenta en el equipo. Nunca verificar el soporte con un secreto compartido (HMAC):
-   el repo y la app son públicos; solo la llave pública puede ir en el front.
+   "Borrar todo" cierra la cuenta en el equipo (y solo olvida la clave si comprobó que se borró). Nunca verificar
+   el soporte con un secreto compartido (HMAC): el repo y la app son públicos; solo la llave pública va en el front.
+   "Olvidé mi clave → Entrar con mi cuenta" acepta SOLO la cuenta de ese equipo (pref `cuentaEquipo`,
+   `verifyOwner` con un cliente Supabase aparte que no reemplaza la sesión): si no, cualquiera crearía una cuenta propia.
+7. Cantidades: usar `parseQty(texto, unidad)` (en kilos el punto es decimal: "1.250" = 1,25 kg) y `lineTotal(qty, precio)`
+   para el total de cada línea (redondeo exacto sobre gramos). `parseLocaleNumber` es para precios.
+8. Importar Excel nunca pisa con valores por defecto lo que el archivo no traía (`keep` en `ProductDraft`), y
+   "Reemplazar todo" conserva el id de los productos que ya existían (las ventas antiguas apuntan a ese id).
 6. Todo el texto de la UI y los comentarios van en español de Chile, en palabras simples.
 
 ## Tests (`npm test`)
@@ -88,6 +97,8 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/auth.test.ts` — clave, migración de la huella antigua y bloqueo.
 - `src/lib/prices.test.ts` — subir precios con redondeo y la cuenta de "Contar el cajón".
 - `src/lib/backup.test.ts` — cuándo aparece y se pospone el aviso de respaldo.
+- `src/lib/sync/sync.test.ts` también cubre: páginas con horas empatadas, anular una venta ya borrada, numeración
+  tras borrar todo y reintentos de operaciones fallidas.
 - `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)
   y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.
 
@@ -106,5 +117,10 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   de una firma de 64 bytes tiene bits de relleno y cambiarlo puede dejar la misma firma.
 - El puerto 5173 puede estar ocupado por otro proyecto: `.claude/launch.json` usa `autoPort` y
   `vite.config.ts` lee `PORT`. Con otro puerto, generar el link con `MM_APP_URL=http://localhost:PUERTO/`.
+- `supabase/schema.sql`: `apply_ops` toma un candado por cuenta (`select … for update` en `stores`) y RELANZA los
+  errores pasajeros (40P01, 40001, 55P03, 53xxx) para que la app reintente; los demás errores quedan por operación.
+  El motor (`engine.ts`) baja a lotes de 1 si un lote completo falla y aparta una operación tras 5 fallos.
+- Probar campos que actúan al "salir" (onBlur) en el panel del navegador: `el.focus()` no funciona si la ventana no
+  tiene foco; disparar `new FocusEvent('focusin'/'focusout', { bubbles: true })`.
 - Copiar al portapapeles en Windows: `clip.exe` deja un BOM invisible; el script usa `Set-Clipboard` con el
   texto en una variable de entorno. En pruebas usar `--sin-copiar` para no pisar el portapapeles del dueño.

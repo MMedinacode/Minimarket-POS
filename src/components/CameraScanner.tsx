@@ -75,9 +75,11 @@ export default function CameraScanner({ onDetected, onClose, className }: Props)
           },
           (text) => {
             const now = Date.now()
-            // Ignora el mismo código leído dos veces seguidas
-            if (text === last.current.code && now - last.current.t < 2000) return
-            last.current = { code: text, t: now }
+            const prev = last.current
+            last.current = { code: text, t: now } // cuándo se vio por última vez (aunque se ignore)
+            // Mismo código: solo cuenta otra vez si dejó de verse un momento (lo sacaron y lo
+            // volvieron a mostrar). Si se queda frente a la cámara, no suma unidades solo.
+            if (text === prev.code && now - prev.t < 1500) return
             onDetectedRef.current(text.trim())
           },
           () => {

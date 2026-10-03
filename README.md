@@ -38,7 +38,7 @@ del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ven
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | 60 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 64 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
 | `npm run deploy:netlify` | Compila y publica en Netlify (`caja-minimarket.netlify.app`, sección 5) |
 | `npm run iconos` | Regenera los íconos PNG para celular desde el dibujo del logo |
@@ -132,6 +132,10 @@ con `;` y tildes de Excel en Chile).
 | `Rotacion` | no | `Alta` / `Media` / `Baja` | Si falta: `Media` |
 | `Unidad` | no | `un` o `kg` | `kg` = a granel por peso |
 | `StockMinimo` | no | `5` | Umbral de alerta propio |
+
+Si el Excel no trae una columna (por ejemplo, una lista del proveedor con solo nombre y precio), los
+productos que ya existen **conservan** su stock, costo, unidad y categoría; solo cambia lo que venía.
+"Reemplazar todo" pide confirmación si va a eliminar productos.
 
 Los títulos no distinguen mayúsculas ni tildes y aceptan sinónimos (`Código`, `Producto`,
 `Precio`, `Cantidad`…). Antes de aplicar se muestra una **vista previa** con errores y

@@ -96,6 +96,7 @@ export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin
             <p className="mt-1 mb-4 text-muted">Este equipo tiene tu cuenta abierta. Escribe la contraseña de la cuenta para crear la clave de la caja.</p>
             <AccountPanel
               loginOnly
+              ownerCheck
               onSignedIn={() => {
                 setViaAccount(true)
                 setStep('pin')

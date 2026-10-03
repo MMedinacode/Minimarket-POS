@@ -2,6 +2,7 @@
 // de ventas simuladas. Los códigos de barra son FICTICIOS (prefijo 780-9999,
 // con dígito verificador EAN-13 válido para que los lectores los acepten).
 import type { AppData, Expense, ExpenseCategory, PaymentMethod, Product, Rotation, Sale, SaleItem, Settings, Unit } from '../types'
+import { lineTotal } from '../lib/utils'
 
 export const DEFAULT_SETTINGS: Settings = {
   businessName: (import.meta.env?.VITE_BUSINESS_NAME as string | undefined)?.trim() || 'Minimarket Don Pepe',
@@ -206,8 +207,8 @@ export function buildDemoHistory(products: Product[], now: Date = new Date(), da
           })
       }
       const items = [...lines.values()]
-      const total = items.reduce((a, it) => a + Math.round(it.qty * it.unitPrice), 0)
-      const cost = items.reduce((a, it) => a + Math.round(it.qty * it.unitCost), 0)
+      const total = items.reduce((a, it) => a + lineTotal(it.qty, it.unitPrice), 0)
+      const cost = items.reduce((a, it) => a + lineTotal(it.qty, it.unitCost), 0)
       const payment = pickWeighted(payments, payW, rand())
       let received: number | null = null
       if (payment === 'Efectivo') {

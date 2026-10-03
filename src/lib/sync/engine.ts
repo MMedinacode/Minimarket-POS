@@ -13,7 +13,7 @@ import type { AppData } from '../../types'
 import { reducer, type SyncAction } from '../../store/reducer'
 import { uid } from '../utils'
 import { emptyCloudData, mergeChanges } from './mapping'
-import { NetworkError, type Cursors, type PendingOp, type Remote } from './types'
+import { NetworkError, type ApplyResult, type Cursors, type PendingOp, type Remote } from './types'
 
 export type SyncStatus = 'loading' | 'syncing' | 'synced' | 'offline' | 'error'
 
@@ -41,7 +41,11 @@ export interface OpFailure {
 
 const BATCH = 50
 const PAGE = 1000
-const OVERLAP_SECONDS = 5
+// Al descargar se vuelve a mirar un poco hacia atrás: una transacción larga (ej. importar un
+// Excel grande) puede guardar filas con una hora anterior a la de otra que terminó antes
+const OVERLAP_SECONDS = 30
+// Una operación que falla sola tantas veces (sin ser por internet) se aparta para no trabar la cola
+const MAX_ATTEMPTS = 5
 
 export class SyncEngine {
   private base: AppData | null = null
@@ -59,6 +63,9 @@ export class SyncEngine {
   private cleanups: (() => void)[] = []
   private destroyed = false
   private snapshot: SyncSnapshot
+  // Tamaño del lote: baja a 1 si un lote completo falla, para encontrar la operación culpable
+  private batchSize = BATCH
+  private attempts = new Map<string, number>()
 
   constructor(
     private remote: Remote,
@@ -71,6 +78,7 @@ export class SyncEngine {
   /** Carga la copia local, se suscribe a cambios y sincroniza */
   async start(): Promise<void> {
     const saved = await this.storage.load()
+    if (this.destroyed) return // se cerró la cuenta mientras se leía la copia local
     this.base = saved.base
     this.pending = saved.pending
     this.cursors = saved.cursors
@@ -102,6 +110,11 @@ export class SyncEngine {
     this.listeners.clear()
   }
 
+  /** Espera a que termine la sincronización en curso (antes de borrar la copia local) */
+  async whenIdle(): Promise<void> {
+    await this.running?.catch(() => {})
+  }
+
   subscribe(fn: (s: SyncSnapshot) => void): () => void {
     this.listeners.add(fn)
     fn(this.snapshot)
@@ -116,7 +129,10 @@ export class SyncEngine {
   dispatch(action: SyncAction) {
     if (this.destroyed) return
     this.pending.push({ opId: uid(), at: Date.now(), action })
-    void this.storage.savePending(this.pending)
+    this.storage.savePending(this.pending).catch((err: unknown) => {
+      console.error('No se pudo guardar la cola', err)
+      this.onOpFailure({ type: 'guardar-local', error: err instanceof Error ? err.message : String(err) })
+    })
     this.recompute()
     this.emit()
     this.schedule(300)
@@ -172,9 +188,27 @@ export class SyncEngine {
 
   private async flush() {
     const toSend = this.pending.filter((op) => op.ackedAt === undefined)
-    for (let i = 0; i < toSend.length; i += BATCH) {
-      const batch = toSend.slice(i, i + BATCH)
-      const res = await this.remote.applyOps(batch)
+    for (let i = 0; i < toSend.length; i += this.batchSize) {
+      const batch = toSend.slice(i, i + this.batchSize)
+      let res: ApplyResult
+      try {
+        res = await this.remote.applyOps(batch)
+      } catch (err) {
+        if (err instanceof NetworkError) throw err
+        if (batch.length > 1) {
+          // Falló el lote completo (no por internet): el próximo intento va de a una operación
+          this.batchSize = 1
+          throw err
+        }
+        const op = batch[0]
+        const n = (this.attempts.get(op.opId) ?? 0) + 1
+        this.attempts.set(op.opId, n)
+        if (n < MAX_ATTEMPTS) throw err
+        // Falló sola muchas veces: se aparta y se avisa, para que las demás sí suban
+        this.attempts.delete(op.opId)
+        res = { errors: [{ opId: op.opId, type: op.action.type, error: err instanceof Error ? err.message : String(err) }] }
+      }
+      if (this.destroyed) return // se cerró la cuenta: no se vuelve a escribir la copia local
       const ackedAt = Date.now()
       const failed = new Map(res.errors.map((e) => [e.opId, e]))
       const ids = new Set(batch.map((op) => op.opId))
@@ -186,6 +220,7 @@ export class SyncEngine {
       await this.storage.savePending(this.pending)
       if (failed.size) this.recompute()
     }
+    this.batchSize = BATCH
   }
 
   private async pull() {
@@ -194,22 +229,34 @@ export class SyncEngine {
     let base = this.base ?? emptyCloudData()
     let first = true
     let more = true
+    let rows = 0
     while (more) {
       const res = await this.remote.pull(cursors, first ? OVERLAP_SECONDS : 0, PAGE)
+      if (this.destroyed) return // se cerró la cuenta mientras se descargaba
       first = false
       base = mergeChanges(base, res)
       more = false
       for (const table of ['products', 'sales', 'expenses'] as const) {
-        const rows = res[table]
-        if (rows.length) cursors[table] = rows[rows.length - 1].updated_at
-        if (rows.length >= PAGE) more = true
+        const list = res[table]
+        rows += list.length
+        if (list.length) cursors[table] = list[list.length - 1].updated_at
+        if (list.length >= PAGE) more = true
       }
     }
-    this.base = base
-    this.cursors = cursors
     // Lo confirmado ANTES de esta descarga ya viene incluido en `base`
-    this.pending = this.pending.filter((op) => op.ackedAt === undefined || op.ackedAt > startedAt)
-    await Promise.all([this.storage.saveBase(base, cursors), this.storage.savePending(this.pending)])
+    const pending = this.pending.filter((op) => op.ackedAt === undefined || op.ackedAt > startedAt)
+    const pendingChanged = pending.length !== this.pending.length
+    const baseChanged = !this.base || rows > 0 || JSON.stringify(base.settings) !== JSON.stringify(this.base.settings)
+    if (!baseChanged && !pendingChanged) return // no llegó nada nuevo: no se reescribe la copia local
+    if (baseChanged) {
+      this.base = base
+      this.cursors = cursors
+    }
+    this.pending = pending
+    await Promise.all([
+      baseChanged ? this.storage.saveBase(this.base!, this.cursors) : Promise.resolve(),
+      pendingChanged ? this.storage.savePending(pending) : Promise.resolve(),
+    ])
     this.recompute()
   }
 

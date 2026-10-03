@@ -43,6 +43,23 @@ export function formatQty(qty: number, unit: Unit): string {
 }
 
 /** Redondea cantidades: unidades enteras, kilos a 3 decimales */
+/**
+ * Cantidad escrita a mano. En kilos el punto es decimal ("1.250" = 1,25 kg, como sale en el
+ * teclado numérico); en unidades se lee igual que un precio ("1.200" = 1200).
+ */
+export function parseQty(value: unknown, unit: Unit): number | null {
+  if (unit === 'kg' && typeof value === 'string' && /^\s*\d+\.\d+\s*$/.test(value)) return Number(value.trim())
+  return parseLocaleNumber(value)
+}
+
+/**
+ * Total de una línea en pesos enteros. Se multiplica sobre gramos enteros para que el redondeo
+ * sea exacto: 0,145 kg × $1.500 = $217,5 → $218 (con decimales de la máquina daba $217).
+ */
+export function lineTotal(qty: number, unitPrice: number): number {
+  return Math.round((Math.round(qty * 1000) * unitPrice) / 1000)
+}
+
 export function roundQty(qty: number, unit: Unit): number {
   return unit === 'kg' ? Math.round(qty * 1000) / 1000 : Math.round(qty)
 }
@@ -63,8 +80,8 @@ export function parseLocaleNumber(value: unknown): number | null {
     s = s.replace(/\./g, '').replace(',', '.')
   } else if (hasComma) {
     s = s.replace(',', '.')
-  } else if (hasDot && /^-?\d{1,3}(\.\d{3})+$/.test(s)) {
-    // 1.990 o 12.500.000 → son puntos de miles
+  } else if (hasDot && /^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) {
+    // 1.990 o 12.500.000 → son puntos de miles ("0.500" no: es medio kilo)
     s = s.replace(/\./g, '')
   }
   const n = Number(s)

@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { buildDemoData } from '../data/mockData'
 import { allCategories } from './categories'
 import { buildWorkbook, readWorkbookFile } from './excel-io'
-import { parseInventoryRows } from './excel-model'
+import { applyImport, parseInventoryRows } from './excel-model'
 
 const known = allCategories([])
 
@@ -23,7 +23,9 @@ describe('lectura de archivos', () => {
     const r = await parseFile(new File([csv], 'inv.csv'))
     expect(r.missingColumns).toEqual([])
     expect(r.rows[0].draft).toMatchObject({ barcode: '0012345678905', category: 'Bebidas', cost: 1350, price: 2090, stock: 50, rotation: 'Alta' })
-    expect(r.rows[1].draft).toMatchObject({ barcode: '', category: 'Panadería', stock: 13, rotation: 'Alta' })
+    // Sin columna de unidad, el redondeo de 12,5 se hace al aplicar (podría ser un producto por kilo)
+    expect(r.rows[1].draft).toMatchObject({ barcode: '', category: 'Panadería', stock: 12.5, rotation: 'Alta' })
+    expect(applyImport([], [r.rows[1].draft!], 'merge').products[0].stock).toBe(13)
   })
 
   it('CSV de Excel chileno (Windows-1252 y punto y coma)', async () => {

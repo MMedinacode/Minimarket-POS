@@ -7,6 +7,21 @@ import { Button } from './primitives'
 // Pila de modales abiertos: Escape solo cierra el de más arriba
 const stack: string[] = []
 
+// Bloqueo del scroll del fondo compartido por todas las ventanas abiertas. Se guarda el valor
+// original una sola vez y se devuelve cuando se cierra la última (si se cierran dos a la vez,
+// como "Eliminar" dentro de "Editar producto", la página no queda sin scroll).
+let lockCount = 0
+let savedOverflow = ''
+function lockScroll() {
+  if (lockCount++ === 0) {
+    savedOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+}
+function unlockScroll() {
+  if (lockCount > 0 && --lockCount === 0) document.body.style.overflow = savedOverflow
+}
+
 interface ModalProps {
   open: boolean
   onClose: () => void
@@ -39,8 +54,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
     stack.push(id)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockScroll()
 
     // Foco inicial: el primer elemento con autofocus, o el panel
     requestAnimationFrame(() => {
@@ -64,7 +78,8 @@ export function Modal({ open, onClose, title, description, children, footer, siz
         if (!els.length) return
         const first = els[0]
         const last = els[els.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
+        const onPanel = document.activeElement === panelRef.current
+        if (e.shiftKey && (document.activeElement === first || onPanel)) {
           e.preventDefault()
           last.focus()
         } else if (!e.shiftKey && document.activeElement === last) {
@@ -78,7 +93,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       document.removeEventListener('keydown', onKey)
       const i = stack.indexOf(id)
       if (i >= 0) stack.splice(i, 1)
-      if (!stack.length) document.body.style.overflow = prevOverflow
+      unlockScroll()
       previous?.focus?.()
     }
   }, [open, id])
@@ -111,7 +126,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
             </h2>
             {description && <p className="mt-1 text-sm text-subtle">{description}</p>}
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Cerrar" className="-mr-1.5 -mt-0.5">
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar" className="-mr-2 -mt-1">
             <X />
           </Button>
         </div>

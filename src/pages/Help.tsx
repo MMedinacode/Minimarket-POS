@@ -16,6 +16,7 @@ import {
   Receipt,
   Scale,
   ScanBarcode,
+  SlidersHorizontal,
   Smartphone,
   TrendingUp,
   Wallet,
@@ -120,18 +121,39 @@ const TOPICS: Topic[] = [
     body: (
       <ul className="space-y-2">
         <li className="flex items-center gap-2">
-          <CheckCircle2 className="size-5 text-ok-ink" /> <B>Bien</B>: tienes suficiente.
+          <CheckCircle2 className="size-5 shrink-0 text-ok-ink" /> <span><B>Verde · Bien</B>: tienes suficiente.</span>
         </li>
         <li className="flex items-center gap-2">
-          <AlertTriangle className="size-5 text-warn-ink" /> <B>Queda poco</B>: hay que pedir pronto.
+          <AlertTriangle className="size-5 shrink-0 text-warn-ink" /> <span><B>Amarillo · Queda poco</B>: pedir pronto.</span>
         </li>
         <li className="flex items-center gap-2">
-          <XCircle className="size-5 text-danger-ink" /> <B>Agotado</B>: no queda nada.
+          <AlertTriangle className="size-5 shrink-0 text-danger-ink" /> <span><B>Rojo · Muy poco</B>: hay que pedir ya.</span>
+        </li>
+        <li className="flex items-center gap-2">
+          <XCircle className="size-5 shrink-0 text-danger-ink" /> <span><B>Agotado</B>: no queda nada.</span>
         </li>
         <li>
-          En <B>Inicio → Pedido al proveedor</B> se arma la lista de lo que hay que pedir, lista para mandar por WhatsApp.
+          En <B>Inicio → Pedido al proveedor</B> se arma la lista: los rojos van solos y los amarillos se agregan con un toque. Queda
+          lista para mandar por WhatsApp.
         </li>
       </ul>
+    ),
+  },
+  {
+    icon: SlidersHorizontal,
+    title: 'Cambiar cuándo se pone rojo o amarillo',
+    body: (
+      <Steps>
+        <li>La caja lo calcula sola según el tipo de producto y lo que vendes. Si te sirve así, no hagas nada.</li>
+        <li>
+          Para un <B>tipo de producto</B> (ej: todos los quesos por kilo): <B>Más → Ajustes → Avisos de stock por tipo de producto</B>.
+          Escribe el número del rojo y del amarillo.
+        </li>
+        <li>
+          Para <B>un solo producto</B>: en <B>Productos</B> tócalo → <B>Editar</B> → <B>Más opciones</B>.
+        </li>
+        <li>Ejemplo: rojo 10 y amarillo 20 → menos de 10 es rojo, de 10 a 19 amarillo y desde 20 verde.</li>
+      </Steps>
     ),
   },
   {

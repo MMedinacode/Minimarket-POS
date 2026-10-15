@@ -4,6 +4,7 @@ import { allCategories, inferCategory } from '../lib/categories'
 import { nextInternalCode } from '../lib/ean13'
 import { beepOk } from '../lib/sound'
 import { getStockInfo, suggestRotation } from '../lib/stock'
+import { StockLevelsLegend } from './StockLevelsLegend'
 import { cn, formatCLP, parseQty, roundQty } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { ROTATION_LABEL, ROTATIONS, type Product, type Rotation, type Unit } from '../types'
@@ -46,7 +47,8 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
   const [categoryTouched, setCategoryTouched] = useState(Boolean(product))
   const [customCategory, setCustomCategory] = useState(false)
   const [rotation, setRotation] = useState<Rotation>(product?.rotation ?? 'Media')
-  const [minStock, setMinStock] = useState(product?.minStock != null ? String(product.minStock) : '')
+  const [minStock, setMinStock] = useState(product?.minStock != null ? String(product.minStock).replace('.', ',') : '')
+  const [warnStock, setWarnStock] = useState(product?.warnStock != null ? String(product.warnStock).replace('.', ',') : '')
   const [scanning, setScanning] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -62,10 +64,15 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
   const unitProfit = (price ?? 0) - (cost ?? 0)
   const per = unit === 'kg' ? 'por kilo' : 'por cada uno'
 
-  const autoThreshold = useMemo(() => {
-    const draft = { ...(product ?? ({} as Product)), rotation, unit, stock: 0, minStock: null }
-    return getStockInfo(draft as Product, settings, v).threshold
-  }, [product, rotation, unit, settings, v])
+  // Avisos: lo que pasaría si los dejara vacíos (por tipo de producto o automático) y lo que queda con lo escrito
+  const levelInfo = useMemo(() => {
+    const base = { ...(product ?? ({} as Product)), category: effectiveCategory, rotation, unit, stock: 1 }
+    const auto = getStockInfo({ ...base, minStock: null, warnStock: null } as Product, settings, v)
+    const red = minStock.trim() ? parseQty(minStock, unit) : null
+    const yellow = warnStock.trim() ? parseQty(warnStock, unit) : null
+    const now = getStockInfo({ ...base, minStock: red, warnStock: yellow } as Product, settings, v)
+    return { auto, now }
+  }, [product, effectiveCategory, rotation, unit, settings, v, minStock, warnStock])
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -74,11 +81,14 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
     const code = barcode.trim()
     const stockN = stock.trim() ? parseQty(stock, unit) : 0
     const minN = minStock.trim() ? parseQty(minStock, unit) : null
+    const warnN = warnStock.trim() ? parseQty(warnStock, unit) : null
 
     if (!cleanName) errs.name = 'Escribe el nombre del producto'
     if (!price || price <= 0) errs.price = 'Escribe a cuánto lo vendes'
     if (stockN === null || stockN < 0) errs.stock = 'Escribe un número (puede ser 0)'
     if (minStock.trim() && (minN === null || minN < 0)) errs.minStock = 'Escribe un número'
+    if (warnStock.trim() && (warnN === null || warnN < 0)) errs.warnStock = 'Escribe un número'
+    else if (minN !== null && warnN !== null && warnN < minN) errs.warnStock = 'Debe ser igual o mayor que el número del rojo'
     if (code) {
       const dup = products.find((p) => p.barcode === code && p.id !== product?.id)
       if (dup) errs.barcode = `Ese código ya lo tiene "${dup.name}"`
@@ -99,6 +109,7 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
       stock: roundQty(stockN ?? 0, unit),
       rotation,
       minStock: minN,
+      warnStock: warnN,
     }
     if (product) {
       // La cantidad solo se envía si se cambió: así no se pisa una venta que
@@ -300,7 +311,7 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
         {/* Lo menos usado, escondido para no confundir */}
         <details className="group rounded-xl border border-line sm:col-span-2">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-semibold">
-            Más opciones (aviso cuando se acaba)
+            Más opciones (avisos de cuándo pedir)
             <ChevronDown className="size-5 transition-transform group-open:rotate-180" />
           </summary>
           <div className="grid gap-4 border-t border-line p-4 sm:grid-cols-2">
@@ -329,14 +340,52 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
               />
             </Field>
             <Field
-              className="sm:col-span-2"
-              label="Avisarme cuando queden menos de"
+              label={
+                <span className="flex items-center gap-2">
+                  <span className="inline-block size-3 rounded-full bg-danger" aria-hidden /> Rojo (muy poco): cuando queden menos de
+                </span>
+              }
               htmlFor="pf-min"
               error={errors.minStock}
-              hint={minStock.trim() ? 'Se usará este número' : `Si lo dejas vacío, avisa solo (ahora: menos de ${autoThreshold})`}
             >
-              <Input id="pf-min" value={minStock} onChange={(e) => setMinStock(e.target.value)} inputMode="decimal" placeholder="Automático" className="tabular max-w-40" />
+              <Input
+                id="pf-min"
+                value={minStock}
+                onChange={(e) => setMinStock(e.target.value)}
+                inputMode="decimal"
+                placeholder={`Automático: ${String(levelInfo.auto.red).replace('.', ',')}`}
+                className="tabular"
+              />
             </Field>
+            <Field
+              label={
+                <span className="flex items-center gap-2">
+                  <span className="inline-block size-3 rounded-full bg-warn" aria-hidden /> Amarillo (queda poco): cuando queden menos de
+                </span>
+              }
+              htmlFor="pf-warn"
+              error={errors.warnStock}
+            >
+              <Input
+                id="pf-warn"
+                value={warnStock}
+                onChange={(e) => setWarnStock(e.target.value)}
+                inputMode="decimal"
+                placeholder={`Automático: ${String(levelInfo.auto.yellow).replace('.', ',')}`}
+                className="tabular"
+              />
+            </Field>
+            <div className="rounded-xl bg-surface-2 p-3 sm:col-span-2">
+              <p className="mb-1.5 text-sm font-semibold">
+                {minStock.trim() || warnStock.trim()
+                  ? 'Así va a avisar este producto:'
+                  : levelInfo.auto.source === 'tipo'
+                    ? `Así avisa ahora (lo que pusiste para ${effectiveCategory}):`
+                    : 'Así avisa ahora (automático, según el tipo de producto y lo que vendes):'}
+              </p>
+              <StockLevelsLegend levels={levelInfo.now} unit={unit} />
+              <p className="mt-2 text-xs text-subtle">Deja los dos vacíos para que la caja lo calcule sola. Si escribes solo uno, el otro se calcula.</p>
+            </div>
           </div>
         </details>
       </form>

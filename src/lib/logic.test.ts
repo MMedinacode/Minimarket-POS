@@ -5,7 +5,7 @@ import type { AppData, Product, Sale } from '../types'
 import { dailySeries, marginPct, salesByHour, slowMovers, summarizeDay, topProducts } from './analytics'
 import { allCategories, inferCategory, matchCategory } from './categories'
 import { applyImport, buildSheets, parseInventoryRows } from './excel-model'
-import { buildVelocityMap, getStockInfo, suggestOrderQty } from './stock'
+import { autoLevels, buildVelocityMap, describeLevels, getStockInfo, suggestOrderQty, typeLevels } from './stock'
 import { dayKey, formatCLP, lineTotal, parseLocaleNumber, parseQty } from './utils'
 
 const product = (over: Partial<Product> = {}): Product => ({
@@ -19,6 +19,7 @@ const product = (over: Partial<Product> = {}): Product => ({
   unit: 'un',
   rotation: 'Media',
   minStock: null,
+  warnStock: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   ...over,
@@ -91,40 +92,73 @@ describe('categorías automáticas', () => {
   })
 })
 
-describe('stock crítico diferenciado', () => {
+describe('stock en tres colores (rojo, amarillo, verde)', () => {
   const s = DEFAULT_SETTINGS
-  it('usa el umbral según rotación (alta < 10, baja < 2)', () => {
-    expect(getStockInfo(product({ rotation: 'Alta', stock: 9 }), s).status).toBe('critico')
-    expect(getStockInfo(product({ rotation: 'Alta', stock: 10 }), s).status).toBe('ok')
-    expect(getStockInfo(product({ rotation: 'Baja', stock: 2 }), s).status).toBe('ok')
-    expect(getStockInfo(product({ rotation: 'Baja', stock: 1 }), s).status).toBe('critico')
-    expect(getStockInfo(product({ stock: 0 }), s).status).toBe('agotado')
+  const status = (over: Partial<Product>, settings = s, velocity = 0) => getStockInfo(product(over), settings, velocity).status
+  it('usa los niveles automáticos del tipo de producto (Abarrotes: rojo bajo 5, amarillo bajo 10)', () => {
+    expect(status({ stock: 0 })).toBe('agotado')
+    expect(status({ stock: 4 })).toBe('critico')
+    expect(status({ stock: 5 })).toBe('cerca')
+    expect(status({ stock: 9 })).toBe('cerca')
+    expect(status({ stock: 10 })).toBe('ok')
+    expect(getStockInfo(product(), s).source).toBe('automatico')
   })
-  it('sube el umbral si el producto se vende más rápido', () => {
-    // 8 al día × 2 días de cobertura = alerta bajo 16, aunque la rotación sea baja
+  it('papas fritas: rojo de 0 a 9, amarillo de 10 a 19, verde desde 20', () => {
+    const papas = (stock: number) => status({ category: 'Snacks', stock })
+    expect([papas(9), papas(10), papas(19), papas(20)]).toEqual(['critico', 'cerca', 'cerca', 'ok'])
+    expect(describeLevels({ red: 10, yellow: 20 }, 'un')).toEqual({ red: 'menos de 10', yellow: 'de 10 a 19', green: '20 o más' })
+  })
+  it('quesos y fiambres por kilo: rojo bajo 1 kg, amarillo bajo 2 kg', () => {
+    const queso = (stock: number) => status({ category: 'Fiambrería', unit: 'kg', stock })
+    expect([queso(0.8), queso(1.5), queso(2)]).toEqual(['critico', 'cerca', 'ok'])
+  })
+  it('lo que se vende mucho avisa antes y lo que se vende poco, después', () => {
+    expect(autoLevels(product({ rotation: 'Alta' }))).toEqual({ red: 8, yellow: 15 })
+    expect(autoLevels(product({ rotation: 'Baja' }))).toEqual({ red: 3, yellow: 5 })
+  })
+  it('reconoce tipos creados por el dueño y usa un valor prudente si no lo conoce', () => {
+    expect(typeLevels('Cigarrillos', 'un')).toEqual({ red: 10, yellow: 20 })
+    expect(typeLevels('Repuestos', 'un')).toEqual({ red: 3, yellow: 6 })
+    expect(typeLevels('Repuestos', 'kg')).toEqual({ red: 1, yellow: 2 })
+  })
+  it('sube los niveles si el producto se vende más rápido de lo normal', () => {
+    // 8 al día × 2 días = rojo bajo 16 (y amarillo bajo 32), aunque se venda "poco"
     const info = getStockInfo(product({ rotation: 'Baja', stock: 12 }), s, 8)
-    expect(info.threshold).toBe(16)
-    expect(info.reason).toBe('velocidad')
-    expect(info.status).toBe('critico')
+    expect(info).toMatchObject({ red: 16, yellow: 32, status: 'critico', source: 'automatico' })
     expect(info.daysLeft).toBe(1.5)
   })
-  it('respeta el mínimo manual', () => {
-    const info = getStockInfo(product({ rotation: 'Alta', stock: 4, minStock: 3 }), s, 20)
-    expect(info.threshold).toBe(3)
-    expect(info.status).toBe('ok')
+  it('respeta los números del producto (si falta uno, se calcula: amarillo = doble del rojo)', () => {
+    expect(getStockInfo(product({ stock: 4, minStock: 3 }), s, 20)).toMatchObject({ red: 3, yellow: 6, status: 'cerca', source: 'producto' })
+    expect(getStockInfo(product({ stock: 4, minStock: 1, warnStock: 4 }), s)).toMatchObject({ red: 1, yellow: 4, status: 'ok' })
+    expect(getStockInfo(product({ stock: 12, warnStock: 20 }), s)).toMatchObject({ red: 10, yellow: 20, status: 'cerca' })
   })
-  it('sugiere cuánto pedir al proveedor', () => {
-    // Alta: umbral 10 → objetivo 20; hay 4 → pedir 16
-    const alta = product({ rotation: 'Alta', stock: 4 })
-    expect(suggestOrderQty(alta, getStockInfo(alta, s, 0))).toBe(16)
-    // Se venden 5 al día → 7 días = 35 → pedir 31
-    expect(suggestOrderQty(alta, getStockInfo(alta, s, 5))).toBe(31)
-    // Granel: medio kilo hacia arriba
-    const pan = product({ unit: 'kg', rotation: 'Media', stock: 1.3 })
-    expect(suggestOrderQty(pan, getStockInfo(pan, s, 0))).toBe(9)
+  it('usa lo que el dueño fijó para el tipo de producto, salvo que el producto tenga los suyos', () => {
+    const conTipo = { ...s, stockLevels: { 'Snacks|un': { red: 5, yellow: 8 } } }
+    expect(getStockInfo(product({ category: 'Snacks', stock: 6 }), conTipo)).toMatchObject({ status: 'cerca', source: 'tipo' })
+    expect(getStockInfo(product({ category: 'Snacks', stock: 6, minStock: 7 }), conTipo).source).toBe('producto')
+    // El tipo es por categoría Y unidad: los Snacks por kilo siguen automáticos
+    expect(getStockInfo(product({ category: 'Snacks', unit: 'kg', stock: 6 }), conTipo).source).toBe('automatico')
+  })
+  it('sugiere cuánto pedir para quedar bien en verde', () => {
+    // Abarrotes 5/10 → objetivo 15; hay 4 → pedir 11
+    const arroz = product({ stock: 4 })
+    expect(suggestOrderQty(arroz, getStockInfo(arroz, s, 0))).toBe(11)
+    // Se venden 5 al día: 7 días = 35 (más que 10 + 20) → pedir 31
+    expect(suggestOrderQty(arroz, getStockInfo(arroz, s, 5))).toBe(31)
+    // Pan por kilo 3/6 → objetivo 9 kg: hay 1,3 → 7,7 → medio kilo hacia arriba = 8
+    const pan = product({ category: 'Panadería', unit: 'kg', stock: 1.3 })
+    expect(suggestOrderQty(pan, getStockInfo(pan, s, 0))).toBe(8)
     // Con stock de sobra no se pide nada
     const lleno = product({ stock: 50 })
     expect(suggestOrderQty(lleno, getStockInfo(lleno, s, 0))).toBe(0)
+  })
+  it('la configuración antigua (sin avisos por tipo) se completa al cargar', () => {
+    const vieja = { businessName: 'X', thresholds: { Alta: 10, Media: 5, Baja: 2 }, coverageDays: 2, slowMoverDays: 7, allowNegativeStock: false }
+    const data = reducer({ products: [], sales: [], expenses: [], settings: s, isDemo: false }, {
+      type: 'hydrate',
+      data: { products: [], sales: [], expenses: [], settings: vieja as unknown as typeof s, isDemo: false },
+    })
+    expect(data.settings.stockLevels).toEqual({})
   })
   it('calcula la velocidad de venta ignorando ventas anuladas', () => {
     // Ventas de hace 1 hora: si se crean "ahora", pueden quedar 1 ms después de `now`
@@ -253,8 +287,8 @@ describe('Excel: importación', () => {
   it('combinar actualiza por código y agrega nuevos; reemplazar deja solo el Excel', () => {
     const existing = [product({ id: 'x', barcode: '111', name: 'Viejo', price: 500 })]
     const drafts = [
-      { barcode: '111', name: 'Actualizado', category: 'Bebidas', cost: 1, price: 900, stock: 3, unit: 'un' as const, rotation: 'Alta' as const, minStock: null },
-      { barcode: '222', name: 'Nuevo', category: 'Bebidas', cost: 1, price: 900, stock: 3, unit: 'un' as const, rotation: 'Alta' as const, minStock: null },
+      { barcode: '111', name: 'Actualizado', category: 'Bebidas', cost: 1, price: 900, stock: 3, unit: 'un' as const, rotation: 'Alta' as const, minStock: null, warnStock: null },
+      { barcode: '222', name: 'Nuevo', category: 'Bebidas', cost: 1, price: 900, stock: 3, unit: 'un' as const, rotation: 'Alta' as const, minStock: null, warnStock: null },
     ]
     const merged = applyImport(existing, drafts, 'merge')
     expect(merged).toMatchObject({ added: 1, updated: 1 })

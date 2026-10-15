@@ -38,7 +38,7 @@ del negocio y si quieres **probar con ejemplos** (68 productos y 14 días de ven
 |---|---|
 | `npm run dev` | Servidor de desarrollo (muestra también una IP para abrirlo desde otro equipo de la red) |
 | `npm run build` | Compila la versión de producción en `dist/` (revisa TypeScript antes) |
-| `npm test` | 64 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
+| `npm test` | 71 pruebas automáticas, incluida la sincronización contra PostgreSQL real (PGlite) |
 | `npm run deploy` | Compila y publica en GitHub Pages (rama `gh-pages`) |
 | `npm run deploy:netlify` | Compila y publica en Netlify (`caja-minimarket.netlify.app`, sección 5) |
 | `npm run iconos` | Regenera los íconos PNG para celular desde el dibujo del logo |
@@ -131,7 +131,8 @@ con `;` y tildes de Excel en Chile).
 | `Stock` | no | `24` o `2,5` | Unidades, o kilos si la unidad es `kg` |
 | `Rotacion` | no | `Alta` / `Media` / `Baja` | Si falta: `Media` |
 | `Unidad` | no | `un` o `kg` | `kg` = a granel por peso |
-| `StockMinimo` | no | `5` | Umbral de alerta propio |
+| `StockMinimo` | no | `10` | Se pone **rojo** (muy poco) con menos de esto. Vacío = automático |
+| `StockAviso` | no | `20` | Se pone **amarillo** (queda poco) con menos de esto. Vacío = automático |
 
 Si el Excel no trae una columna (por ejemplo, una lista del proveedor con solo nombre y precio), los
 productos que ya existen **conservan** su stock, costo, unidad y categoría; solo cambia lo que venía.
@@ -220,7 +221,10 @@ Muestra **cuánto vendiste, cuánto gastaste, cuánto te queda** y **cuánta pla
 cajón**. Al cerrar, **Contar el cajón** dice si está justo, si sobra o si falta plata. Si te equivocaste en una venta: *Ventas de hoy → tocar la venta → Anular venta*.
 
 ### Productos
-Lista simple con "Quedan 8 · Queda poco". Filtros: *Todos · Se están acabando · Agotados*.
+Lista simple con "Quedan 8" y un color: **rojo** (muy poco, hay que pedir), **amarillo** (queda poco, pedir pronto)
+o **verde** (bien). Filtros: *Todos · Muy poco · Queda poco · Agotados*. Cuándo cambia de color se calcula solo según
+el tipo de producto y lo que se vende; se puede cambiar por tipo (**Más → Ajustes → Avisos de stock**) o por producto
+(**Editar → Más opciones**). El **Pedido al proveedor** trae los rojos y ofrece agregar los amarillos.
 En **Más opciones**: **subir precios** en un % (todos o una categoría, con vista previa y
 *Deshacer*), imprimir etiquetas con código de barras (para lo que no trae código),
 ordenar categorías automáticamente y Excel.

@@ -33,7 +33,8 @@ create table if not exists public.products (
   stock      numeric not null default 0,
   unit       text not null default 'un' check (unit in ('un', 'kg')),
   rotation   text not null default 'Media' check (rotation in ('Alta', 'Media', 'Baja')),
-  min_stock  numeric,
+  min_stock  numeric,                                -- rojo ("muy poco"): null = automático
+  warn_stock numeric,                                -- amarillo ("queda poco"): null = automático
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
   deleted    boolean not null default false,        -- borrado "suave": los demás dispositivos se enteran
@@ -131,11 +132,14 @@ language sql immutable set search_path = '' as $$
   select round(q, case when unit = 'kg' then 3 else 0 end)
 $$;
 
+-- Columnas agregadas después de la primera versión (el script se puede volver a ejecutar)
+alter table public.products add column if not exists warn_stock numeric;
+
 -- Crea o actualiza un producto desde JSON (formato de la app)
 create or replace function public.upsert_product(uid uuid, p jsonb, with_stock boolean) returns void
 language plpgsql set search_path = public as $$
 begin
-  insert into products as t (owner_id, id, barcode, name, category, cost, price, stock, unit, rotation, min_stock, created_at, deleted)
+  insert into products as t (owner_id, id, barcode, name, category, cost, price, stock, unit, rotation, min_stock, warn_stock, created_at, deleted)
   values (
     uid,
     p->>'id',
@@ -148,6 +152,7 @@ begin
     coalesce(p->>'unit', 'un'),
     coalesce(p->>'rotation', 'Media'),
     (p->>'minStock')::numeric,
+    (p->>'warnStock')::numeric,
     coalesce((p->>'createdAt')::timestamptz, clock_timestamp()),
     false
   )
@@ -161,6 +166,7 @@ begin
     unit      = excluded.unit,
     rotation  = excluded.rotation,
     min_stock = excluded.min_stock,
+    warn_stock = excluded.warn_stock,
     deleted   = false;
 end $$;
 
@@ -226,7 +232,8 @@ begin
             stock     = case when p ? 'stock'    then (p->>'stock')::numeric else stock end,
             unit      = case when p ? 'unit'     then p->>'unit' else unit end,
             rotation  = case when p ? 'rotation' then p->>'rotation' else rotation end,
-            min_stock = case when p ? 'minStock' then (p->>'minStock')::numeric else min_stock end
+            min_stock = case when p ? 'minStock' then (p->>'minStock')::numeric else min_stock end,
+            warn_stock = case when p ? 'warnStock' then (p->>'warnStock')::numeric else warn_stock end
           where owner_id = uid and id = op->>'id';
 
         when 'deleteProduct' then

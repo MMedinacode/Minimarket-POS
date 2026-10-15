@@ -94,6 +94,7 @@ const product = (over: Partial<Product> = {}): Product => ({
   unit: 'un',
   rotation: 'Alta',
   minStock: null,
+  warnStock: null,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-01T10:00:00.000Z',
   ...over,
@@ -379,5 +380,33 @@ describe('sincronización con PostgreSQL real', () => {
     const [res] = await asUser<{ r: { errors: unknown[] } }>(USER_A, 'select public.apply_ops($1::jsonb) as r', [mixed])
     expect(res.r.errors).toHaveLength(1)
     expect(await asUser(USER_A, `select id from products where id = 'pan'`)).toHaveLength(1)
+  })
+  it('los avisos del producto (rojo y amarillo) llegan iguales al otro equipo', async () => {
+    const bus = new Set<() => void>()
+    const pc = device(USER_A, bus)
+    const cel = device(USER_A, bus)
+    await pc.engine.start()
+    await cel.engine.start()
+    pc.engine.dispatch({ type: 'addProduct', product: product({ id: 'queso', unit: 'kg', stock: 3, minStock: 1, warnStock: 2.5 }) })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    const enCel = () => cel.engine.getSnapshot().data?.products.find((p) => p.id === 'queso')
+    expect(enCel()).toMatchObject({ minStock: 1, warnStock: 2.5 })
+    // Cambiar solo el amarillo no toca el rojo; volver a automático deja null
+    pc.engine.dispatch({ type: 'updateProduct', id: 'queso', patch: { warnStock: 3 } })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(enCel()).toMatchObject({ minStock: 1, warnStock: 3 })
+    pc.engine.dispatch({ type: 'updateProduct', id: 'queso', patch: { minStock: null, warnStock: null } })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(enCel()).toMatchObject({ minStock: null, warnStock: null })
+    // La configuración por tipo de producto también viaja
+    pc.engine.dispatch({ type: 'updateSettings', patch: { stockLevels: { 'Fiambrería|kg': { red: 1, yellow: 2 } } } })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(cel.engine.getSnapshot().data?.settings.stockLevels).toEqual({ 'Fiambrería|kg': { red: 1, yellow: 2 } })
+    pc.engine.destroy()
+    cel.engine.destroy()
   })
 })

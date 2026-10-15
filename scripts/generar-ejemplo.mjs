@@ -6,8 +6,9 @@ import { buildDemoProducts } from '../src/data/mockData.ts'
 
 XLSX.set_fs(fs)
 
-const header = ['CodigoBarras', 'Nombre', 'Categoria', 'PrecioCosto', 'PrecioVenta', 'Stock', 'Rotacion', 'Unidad', 'StockMinimo']
-const rows = buildDemoProducts().map((p) => [p.barcode, p.name, p.category, p.cost, p.price, p.stock, p.rotation, p.unit, ''])
+const header = ['CodigoBarras', 'Nombre', 'Categoria', 'PrecioCosto', 'PrecioVenta', 'Stock', 'Rotacion', 'Unidad', 'StockMinimo', 'StockAviso']
+// Los avisos (rojo y amarillo) van vacíos: así la caja los calcula sola
+const rows = buildDemoProducts().map((p) => [p.barcode, p.name, p.category, p.cost, p.price, p.stock, p.rotation, p.unit, '', ''])
 const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
 ws['!cols'] = header.map((h, i) => ({ wch: Math.max(h.length, ...rows.map((r) => String(r[i]).length)) + 2 }))
 // Formato peso chileno en las columnas de precio

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, TrendingUp, X } from 'lucide-react'
+import { Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, TrendingUp, X } from 'lucide-react'
 import { AutoClassifyModal } from '../components/AutoClassifyModal'
 import { LabelsModal } from '../components/LabelsModal'
 import { PriceRaiseModal } from '../components/PriceRaiseModal'
@@ -13,12 +13,14 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
 import { navigate } from '../hooks/useHashRoute'
 import { slowMovers } from '../lib/analytics'
 import { beepError, beepOk } from '../lib/sound'
-import { isAlert } from '../lib/stock'
+import { isAlert, isWarning } from '../lib/stock'
 import { cn, formatCLP, formatInt, formatQty, normalizeText } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import type { Product } from '../types'
 
-type Filter = 'todos' | 'acabando' | 'agotado' | 'lentos'
+// acabando = rojo (muy poco y agotados) · pronto = amarillo (queda poco)
+type Filter = 'todos' | 'acabando' | 'pronto' | 'agotado' | 'lentos'
+const FILTERS_FROM_URL: Filter[] = ['acabando', 'pronto', 'agotado', 'lentos']
 const PAGE = 60
 const sameCode = (a: string, b: string) => a === b || (a.replace(/^0+/, '') === b.replace(/^0+/, '') && a !== '')
 
@@ -32,7 +34,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [filter, setFilter] = useState<Filter>(
-    initialFilter === 'acabando' || initialFilter === 'agotado' || initialFilter === 'lentos' ? initialFilter : 'todos',
+    (FILTERS_FROM_URL as string[]).includes(initialFilter ?? '') ? (initialFilter as Filter) : 'todos',
   )
   const [limit, setLimit] = useState(PAGE)
 
@@ -57,7 +59,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
     if (params.get('recibir') === '1') setReceiving(true)
     if (params.get('nuevo') === '1') setCreating('')
     const f = params.get('filtro')
-    if (f === 'acabando' || f === 'agotado' || f === 'lentos') setFilter(f)
+    if (f && (FILTERS_FROM_URL as string[]).includes(f)) setFilter(f as Filter)
     history.replaceState(null, '', '#/productos') // que al recargar no se repita
   }, [params])
   useEffect(() => setLimit(PAGE), [query, category, filter])
@@ -106,12 +108,14 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
   )
   const counts = useMemo(() => {
     let acabando = 0
+    let pronto = 0
     let agotado = 0
     for (const i of stockInfo.values()) {
       if (isAlert(i.status)) acabando++
+      if (isWarning(i.status)) pronto++
       if (i.status === 'agotado') agotado++
     }
-    return { acabando, agotado }
+    return { acabando, pronto, agotado }
   }, [stockInfo])
 
   const rows = useMemo(() => {
@@ -120,6 +124,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
       if (category !== 'all' && p.category !== category) return false
       const st = stockInfo.get(p.id)?.status
       if (filter === 'acabando' && !(st && isAlert(st))) return false
+      if (filter === 'pronto' && !(st && isWarning(st))) return false
       if (filter === 'agotado' && st !== 'agotado') return false
       if (filter === 'lentos' && !slowIds?.has(p.id)) return false
       if (words.length) {
@@ -128,9 +133,12 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
       }
       return true
     })
-    if (filter === 'acabando') {
+    if (filter === 'acabando' || filter === 'pronto') {
       // Lo más urgente primero: agotados y los que tienen menos respecto a su aviso
-      const urgency = (p: Product) => p.stock / (stockInfo.get(p.id)?.threshold || 1)
+      const urgency = (p: Product) => {
+        const i = stockInfo.get(p.id)
+        return p.stock / ((filter === 'acabando' ? i?.red : i?.yellow) || 1)
+      }
       return list.sort((a, b) => urgency(a) - urgency(b))
     }
     return list.sort((a, b) => a.name.localeCompare(b.name, 'es'))
@@ -142,9 +150,10 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
     .map((r) => ({ ...r, product: products.find((p) => p.id === r.id) }))
     .filter((r): r is { id: string; qty: number; product: Product } => Boolean(r.product))
 
-  const chips: { value: Filter; label: string; count?: number; icon?: boolean }[] = [
+  const chips: { value: Filter; label: string; count?: number; dot?: string }[] = [
     { value: 'todos', label: 'Todos', count: products.length },
-    { value: 'acabando', label: 'Se están acabando', count: counts.acabando, icon: true },
+    { value: 'acabando', label: 'Muy poco', count: counts.acabando, dot: 'bg-danger' },
+    { value: 'pronto', label: 'Queda poco', count: counts.pronto, dot: 'bg-warn' },
     { value: 'agotado', label: 'Agotados', count: counts.agotado },
   ]
   if (filter === 'lentos') chips.push({ value: 'lentos', label: 'No se venden' })
@@ -189,10 +198,15 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
           )}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button variant="primary" onClick={() => setCreating('')}>
+          <Button variant="primary" className="h-auto min-h-11 py-2 whitespace-normal" onClick={() => setCreating('')}>
             <Plus /> Agregar producto
           </Button>
-          <Button variant={receiving ? 'secondary' : 'outline'} onClick={() => setReceiving(true)} disabled={receiving}>
+          <Button
+            variant={receiving ? 'secondary' : 'outline'}
+            className="h-auto min-h-11 py-2 whitespace-normal"
+            onClick={() => setReceiving(true)}
+            disabled={receiving}
+          >
             <PackagePlus /> Llegó mercadería
           </Button>
           <Button variant="ghost" className="col-span-2 sm:col-span-1" onClick={() => setToolsOpen(true)}>
@@ -214,7 +228,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
               filter === c.value ? 'border-fg bg-fg text-bg' : 'border-line-strong bg-surface text-muted hover:text-fg',
             )}
           >
-            {c.icon && <AlertTriangle className={cn('size-4', filter !== c.value && 'text-warn-ink')} />}
+            {c.dot && <span className={cn('inline-block size-3 rounded-full', c.dot)} aria-hidden />}
             {c.label}
             {c.count !== undefined && <span className="tabular opacity-70">{formatInt(c.count)}</span>}
           </button>

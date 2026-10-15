@@ -2,14 +2,24 @@
 // de ventas simuladas. Los códigos de barra son FICTICIOS (prefijo 780-9999,
 // con dígito verificador EAN-13 válido para que los lectores los acepten).
 import type { AppData, Expense, ExpenseCategory, PaymentMethod, Product, Rotation, Sale, SaleItem, Settings, Unit } from '../types'
-import { lineTotal } from '../lib/utils'
+// Con extensión: scripts/generar-ejemplo.mjs importa este archivo directo con Node
+import { lineTotal } from '../lib/utils.ts'
 
 export const DEFAULT_SETTINGS: Settings = {
   businessName: (import.meta.env?.VITE_BUSINESS_NAME as string | undefined)?.trim() || 'Minimarket Don Pepe',
-  thresholds: { Alta: 10, Media: 5, Baja: 2 },
+  stockLevels: {},
   coverageDays: 2,
   slowMoverDays: 7,
   allowNegativeStock: false,
+}
+
+/**
+ * Completa la configuración guardada con los valores por defecto (los datos guardados por
+ * versiones anteriores pueden no tener los campos nuevos).
+ */
+export function normalizeSettings(s: Partial<Settings> | undefined | null): Settings {
+  const saved = s ?? {}
+  return { ...DEFAULT_SETTINGS, ...saved, stockLevels: { ...(saved.stockLevels ?? {}) } }
 }
 
 /** Dígito verificador EAN-13 */
@@ -144,6 +154,7 @@ export function buildDemoProducts(now: Date = new Date()): Product[] {
     unit,
     rotation,
     minStock: null,
+    warnStock: null,
     createdAt: iso,
     updatedAt: iso,
   }))

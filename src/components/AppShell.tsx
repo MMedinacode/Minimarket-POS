@@ -77,8 +77,8 @@ export function AppShell({ route, onLock, children }: Props) {
           title="Productos que se están acabando"
           className={
             mobile
-              ? 'tabular absolute top-1.5 right-[calc(50%-1.6rem)] min-w-5 rounded-full bg-warn px-1 text-center text-[0.65rem] leading-5 font-bold text-black'
-              : 'tabular rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold text-warn-ink'
+              ? 'tabular absolute top-1.5 right-[calc(50%-1.6rem)] min-w-5 rounded-full bg-danger px-1 text-center text-[0.65rem] leading-5 font-bold text-white'
+              : 'tabular rounded-full bg-danger-soft px-2 py-0.5 text-xs font-bold text-danger-ink'
           }
         >
           {alerts}

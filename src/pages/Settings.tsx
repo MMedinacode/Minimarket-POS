@@ -1,12 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Bell, ChevronDown, Database, KeyRound, RotateCcw, Save, Store, Trash2 } from 'lucide-react'
 import { ConfirmDialog, Modal } from '../components/ui/Modal'
 import { Button, Card, CardHeader, Field, Input } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
 import { changePassword, passwordProblem } from '../lib/auth'
-import { formatInt } from '../lib/utils'
+import { levelKey, typeLevels } from '../lib/stock'
+import { formatInt, parseQty } from '../lib/utils'
 import { useActions, useCloud, useData } from '../store/AppStore'
-import { ROTATIONS, type Rotation } from '../types'
+import type { Unit } from '../types'
 
 export default function SettingsPage() {
   return (
@@ -97,56 +98,105 @@ function PasswordCard() {
   )
 }
 
-const ALERT_LABEL: Record<Rotation, string> = {
-  Alta: 'Los que se venden mucho',
-  Media: 'Los que se venden normal',
-  Baja: 'Los que se venden poco',
-}
-
-const EXAMPLES: Record<Rotation, string> = {
-  Alta: 'Ej: bebidas, pan, cigarros',
-  Media: 'Ej: leche, arroz, fideos',
-  Baja: 'Ej: legumbres, aseo, regalos',
-}
-
+/**
+ * Avisos de stock por tipo de producto (categoría, separando unidad y kilo). Vacío = automático.
+ * Ej: "Fiambrería (por kilo)": rojo bajo 1 kg, amarillo bajo 2 kg.
+ */
 function AlertsCard() {
-  const { settings } = useData()
+  const { settings, products } = useData()
   const actions = useActions()
   const toast = useToast()
-  const [values, setValues] = useState<Record<Rotation, string>>(() => ({
-    Alta: String(settings.thresholds.Alta),
-    Media: String(settings.thresholds.Media),
-    Baja: String(settings.thresholds.Baja),
-  }))
+  const groups = useMemo(() => {
+    const m = new Map<string, { category: string; unit: Unit; count: number }>()
+    for (const p of products) {
+      const k = levelKey(p.category, p.unit)
+      const g = m.get(k) ?? { category: p.category, unit: p.unit, count: 0 }
+      g.count++
+      m.set(k, g)
+    }
+    return [...m.entries()].sort((a, b) => a[1].category.localeCompare(b[1].category, 'es') || a[1].unit.localeCompare(b[1].unit))
+  }, [products])
+  const [values, setValues] = useState<Record<string, { red: string; yellow: string }>>(() =>
+    Object.fromEntries(
+      Object.entries(settings.stockLevels ?? {}).map(([k, l]) => [k, { red: String(l.red).replace('.', ','), yellow: String(l.yellow).replace('.', ',') }]),
+    ),
+  )
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    // Un campo vacío no es 0: si se guardara 0, esos productos nunca avisarían que se acaban
-    if (ROTATIONS.some((r) => !values[r].trim())) return toast.error('Completa los tres números (pueden ser 0)')
-    const parsed = ROTATIONS.map((r) => [r, Number(values[r].replace(',', '.'))] as const)
-    if (parsed.some(([, n]) => !Number.isFinite(n) || n < 0)) return toast.error('Escribe números (pueden ser 0)')
-    actions.updateSettings({ thresholds: Object.fromEntries(parsed) as Record<Rotation, number> })
+    const out: Record<string, { red: number; yellow: number }> = {}
+    for (const [k, g] of groups) {
+      const v = values[k]
+      if (!v || (!v.red.trim() && !v.yellow.trim())) continue // vacío = automático
+      const auto = typeLevels(g.category, g.unit)
+      const red = v.red.trim() ? parseQty(v.red, g.unit) : null
+      const yellow = v.yellow.trim() ? parseQty(v.yellow, g.unit) : null
+      if ((v.red.trim() && (red === null || red < 0)) || (v.yellow.trim() && (yellow === null || yellow < 0))) {
+        return toast.error(`Revisa los números de ${g.category}`)
+      }
+      const r = red ?? (yellow !== null ? (g.unit === 'kg' ? yellow / 2 : Math.floor(yellow / 2)) : auto.red)
+      const y = yellow ?? r * 2
+      if (y < r) return toast.error(`En ${g.category}, el amarillo debe ser igual o mayor que el rojo`)
+      out[k] = { red: r, yellow: y }
+    }
+    actions.updateSettings({ stockLevels: out })
     toast.success('Avisos guardados')
   }
 
   return (
     <Card>
-      <CardHeader icon={<Bell />} title="Avisos de “se está acabando”" subtitle="Avisarme cuando queden menos de…" />
+      <CardHeader icon={<Bell />} title="Avisos de stock por tipo de producto" subtitle="Cuándo se pone rojo (muy poco) y amarillo (queda poco)" />
       <form onSubmit={submit} className="space-y-4 p-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {ROTATIONS.map((r) => (
-            <Field key={r} label={ALERT_LABEL[r]} htmlFor={`th-${r}`} hint={EXAMPLES[r]}>
-              <Input
-                id={`th-${r}`}
-                inputMode="decimal"
-                value={values[r]}
-                onChange={(e) => setValues((v) => ({ ...v, [r]: e.target.value }))}
-                className="tabular h-12 text-lg"
-              />
-            </Field>
-          ))}
-        </div>
-        <p className="text-sm text-subtle">Si un producto se empieza a vender más rápido de lo normal, la caja te avisa antes por su cuenta.</p>
+        <p className="hidden text-sm font-semibold sm:block">
+          <span className="inline-block size-3 rounded-full bg-danger" aria-hidden /> Rojo: menos de ·{' '}
+          <span className="inline-block size-3 rounded-full bg-warn" aria-hidden /> Amarillo: menos de
+        </p>
+        <p className="text-sm text-muted">
+          El número gris es el automático. Deja vacío para que sea automático (según el tipo de producto y lo que vendes). Si un producto tiene sus propios números
+          (Editar → Más opciones), se usan esos.
+        </p>
+        {groups.length === 0 ? (
+          <p className="text-subtle">Agrega productos para configurar sus avisos.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-xl border border-line">
+            {groups.map(([k, g]) => {
+              const auto = typeLevels(g.category, g.unit)
+              const v = values[k] ?? { red: '', yellow: '' }
+              const set = (field: 'red' | 'yellow', text: string) => setValues((all) => ({ ...all, [k]: { ...v, [field]: text } }))
+              return (
+                <li key={k} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_8rem_8rem] sm:items-center">
+                  <span className="font-semibold">
+                    {g.category} <span className="font-normal text-subtle">({g.unit === 'kg' ? 'por kilo' : 'por unidad'} · {g.count})</span>
+                  </span>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="inline-block size-3 shrink-0 rounded-full bg-danger" aria-hidden />
+                    <span className="w-28 shrink-0 sm:hidden">Rojo, menos de</span>
+                    <Input
+                      value={v.red}
+                      onChange={(e) => set('red', e.target.value)}
+                      inputMode="decimal"
+                      placeholder={String(auto.red).replace('.', ',')}
+                      aria-label={`Rojo para ${g.category}: menos de`}
+                      className="tabular"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="inline-block size-3 shrink-0 rounded-full bg-warn" aria-hidden />
+                    <span className="w-28 shrink-0 sm:hidden">Amarillo, menos de</span>
+                    <Input
+                      value={v.yellow}
+                      onChange={(e) => set('yellow', e.target.value)}
+                      inputMode="decimal"
+                      placeholder={String(auto.yellow).replace('.', ',')}
+                      aria-label={`Amarillo para ${g.category}: menos de`}
+                      className="tabular"
+                    />
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         <div className="flex justify-end">
           <Button type="submit" variant="primary">
             <Save /> Guardar avisos

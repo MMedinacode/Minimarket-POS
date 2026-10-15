@@ -7,6 +7,7 @@
 // lo que PASÓ ("se vendieron 2") y no el resultado ("quedan 34").
 import type { AppData, Expense, Product, Sale, Settings } from '../types'
 import { roundQty } from '../lib/utils'
+import { normalizeSettings } from '../data/mockData'
 
 export type StockAdjustMode = 'add' | 'remove' | 'set'
 
@@ -49,7 +50,8 @@ function upsertById<T extends { id: string }>(list: T[], items: T[]): T[] {
 export function reducer(state: AppData, action: Action): AppData {
   switch (action.type) {
     case 'hydrate':
-      return action.data
+      // Lo guardado por versiones anteriores puede no traer los campos nuevos de la configuración
+      return { ...action.data, settings: normalizeSettings(action.data.settings) }
 
     case 'addProduct':
       return { ...state, products: upsertById(state.products, [action.product]) }

@@ -6,7 +6,7 @@ import { ExpenseModal } from '../components/ExpenseModal'
 import { OrderModal } from '../components/OrderModal'
 import { navigate } from '../hooks/useHashRoute'
 import { summarizeDay } from '../lib/analytics'
-import { isAlert } from '../lib/stock'
+import { isAlert, isWarning } from '../lib/stock'
 import { cn, dayKey, formatCLP, formatDateLong } from '../lib/utils'
 import { useCloud, useData, useDerived } from '../store/AppStore'
 
@@ -20,7 +20,11 @@ export default function Home() {
 
   const today = dayKey()
   const day = useMemo(() => summarizeDay(sales, expenses, today), [sales, expenses, today])
-  const running = useMemo(() => [...stockInfo.values()].filter((i) => isAlert(i.status)).length, [stockInfo])
+  // Rojo: hay que pedir ya · Amarillo: pedir pronto
+  const { running, soon } = useMemo(() => {
+    const all = [...stockInfo.values()]
+    return { running: all.filter((i) => isAlert(i.status)).length, soon: all.filter((i) => isWarning(i.status)).length }
+  }, [stockInfo])
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -41,12 +45,16 @@ export default function Home() {
           sub="Lo vendido, menos lo que te costó y los gastos"
           valueClass={day.netProfit < 0 ? 'text-danger-ink' : 'text-ok-ink'}
         />
-        <button type="button" className="text-left" onClick={() => navigate('productos', { filtro: 'acabando' })}>
+        <button type="button" className="text-left" onClick={() => navigate('productos', { filtro: running || !soon ? 'acabando' : 'pronto' })}>
           <Stat
             label="Se están acabando"
             value={`${running} ${running === 1 ? 'producto' : 'productos'}`}
-            sub={running ? 'Toca para ver cuáles' : 'Tienes de todo'}
-            valueClass={running ? 'text-warn-ink' : undefined}
+            sub={
+              running || soon
+                ? `${soon ? `Y ${soon} ${soon === 1 ? 'queda' : 'quedan'} poco. ` : ''}Toca para ver cuáles`
+                : 'Tienes de todo'
+            }
+            valueClass={running ? 'text-danger-ink' : soon ? 'text-warn-ink' : 'text-ok-ink'}
             chevron
           />
         </button>

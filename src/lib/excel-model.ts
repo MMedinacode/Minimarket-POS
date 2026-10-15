@@ -5,7 +5,7 @@ import type { AppData, Expense, Product, Rotation, Sale, Settings, Unit } from '
 import { activeSales, marginPct } from './analytics'
 import { inferCategory, matchCategory } from './categories'
 import { STATUS_LABEL, buildVelocityMap, getStockInfo } from './stock'
-import { dayKey, formatTime, lineTotal, normalizeText, parseLocaleNumber, roundQty, uid } from './utils'
+import { dayKey, formatTime, lineTotal, normalizeText, parseLocaleNumber, parseQty, roundQty, uid } from './utils'
 
 /** Columnas oficiales del Excel de inventario (en este orden) */
 export const INVENTORY_COLUMNS = [
@@ -18,9 +18,10 @@ export const INVENTORY_COLUMNS = [
   'Rotacion',
   'Unidad',
   'StockMinimo',
+  'StockAviso',
 ] as const
 
-type Field = 'barcode' | 'name' | 'category' | 'cost' | 'price' | 'stock' | 'rotation' | 'unit' | 'minStock'
+type Field = 'barcode' | 'name' | 'category' | 'cost' | 'price' | 'stock' | 'rotation' | 'unit' | 'minStock' | 'warnStock'
 
 /** Nombres de columna aceptados (sin tildes, espacios ni símbolos) */
 const ALIASES: Record<Field, string[]> = {
@@ -32,7 +33,9 @@ const ALIASES: Record<Field, string[]> = {
   stock: ['stock', 'cantidad', 'existencias', 'unidades', 'inventario', 'stockactual'],
   rotation: ['rotacion', 'rotacionaltamediabaja', 'velocidad', 'movimiento'],
   unit: ['unidad', 'um', 'unidadmedida', 'unidaddemedida', 'medida'],
-  minStock: ['stockminimo', 'minimo', 'stockcritico', 'alertastock'],
+  // Rojo ("muy poco") y amarillo ("queda poco")
+  minStock: ['stockminimo', 'minimo', 'stockcritico', 'alertastock', 'rojo', 'stockrojo'],
+  warnStock: ['stockaviso', 'aviso', 'stockamarillo', 'amarillo', 'stockcerca', 'cercadecritico', 'stockbajo'],
 }
 
 const REQUIRED: Field[] = ['name', 'price']
@@ -47,6 +50,7 @@ const FIELD_LABEL: Record<Field, string> = {
   rotation: 'Rotacion',
   unit: 'Unidad',
   minStock: 'StockMinimo',
+  warnStock: 'StockAviso',
 }
 
 const headerKey = (h: unknown) => normalizeText(String(h ?? '')).replace(/[^a-z0-9]/g, '')
@@ -59,6 +63,8 @@ function detectField(header: unknown): Field | null {
   }
   // "Rotacion (Alta/Media/Baja)", "Stock mínimo sugerido", etc.
   if (key.startsWith('rotacion')) return 'rotation'
+  if (key.startsWith('stockminimo')) return 'minStock'
+  if (key.startsWith('stockaviso')) return 'warnStock'
   if (key.startsWith('codigo')) return 'barcode'
   return null
 }
@@ -73,6 +79,7 @@ export interface ProductDraft {
   unit: Unit
   rotation: Rotation
   minStock: number | null
+  warnStock: number | null
   /**
    * Datos que el Excel NO traía (columna ausente o celda vacía) y se rellenaron con un valor por
    * defecto. Si el producto ya existe, se conservan los suyos: una lista del proveedor con solo
@@ -81,7 +88,7 @@ export interface ProductDraft {
   keep?: KeepField[]
 }
 
-export type KeepField = 'cost' | 'stock' | 'unit' | 'rotation' | 'category' | 'minStock'
+export type KeepField = 'cost' | 'stock' | 'unit' | 'rotation' | 'category' | 'minStock' | 'warnStock'
 
 export interface ImportRow {
   /** Número de fila tal como se ve en Excel */
@@ -226,9 +233,18 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
       keep.push('category')
     }
 
-    const minRaw = get(row, 'minStock')
-    const minStock = String(minRaw ?? '').trim() === '' ? null : parseLocaleNumber(minRaw)
+    // Avisos de stock: rojo (StockMinimo) y amarillo (StockAviso). Vacíos = automáticos
+    const level = (f: 'minStock' | 'warnStock') => {
+      const raw = get(row, f)
+      return String(raw ?? '').trim() === '' ? null : parseQty(raw, unit)
+    }
+    const minStock = level('minStock')
+    const warnStock = level('warnStock')
     if (minStock === null) keep.push('minStock')
+    if (warnStock === null) keep.push('warnStock')
+    if (minStock !== null && warnStock !== null && warnStock < minStock) {
+      warnings.push('El aviso amarillo es menor que el rojo: se usó el mismo número')
+    }
 
     // Solo las filas válidas "reservan" su código: si la fila 5 tiene un error,
     // una fila 6 correcta con el mismo código no debe rechazarse por duplicada.
@@ -256,6 +272,7 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
             unit,
             rotation,
             minStock: minStock !== null && minStock >= 0 ? minStock : null,
+            warnStock: warnStock !== null && warnStock >= 0 ? Math.max(warnStock, minStock ?? 0) : null,
             keep,
           },
     })
@@ -361,6 +378,7 @@ export function inventorySheet(products: Product[], settings: Settings, velocity
       { header: 'Rotacion', format: 'text' },
       { header: 'Unidad', format: 'text' },
       { header: 'StockMinimo', format: 'qty' },
+      { header: 'StockAviso', format: 'qty' },
       { header: 'Utilidad', format: 'money' },
       { header: 'Margen %', format: 'pct' },
       { header: 'EstadoStock', format: 'text' },
@@ -378,6 +396,7 @@ export function inventorySheet(products: Product[], settings: Settings, velocity
         p.rotation,
         p.unit,
         p.minStock ?? '',
+        p.warnStock ?? '',
         p.price - p.cost,
         Math.round(marginPct(p.cost, p.price) * 10) / 10,
         STATUS_LABEL[info.status],

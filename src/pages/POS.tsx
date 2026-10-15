@@ -51,6 +51,7 @@ function customProduct(l: CartLine): Product {
     unit: 'un',
     rotation: 'Baja',
     minStock: null,
+    warnStock: null,
     createdAt: '',
     updatedAt: '',
   }
@@ -572,7 +573,9 @@ export default function POS() {
               {visible.map((p) => {
                 const info = stockInfo.get(p.id)
                 const out = info?.status === 'agotado'
+                // Rojo (muy poco) y amarillo (queda poco), igual que en Productos
                 const low = info?.status === 'critico'
+                const soon = info?.status === 'cerca'
                 const inCart = cart.find((l) => l.productId === p.id)?.qty
                 return (
                   <button
@@ -599,10 +602,10 @@ export default function POS() {
                       <span
                         className={cn(
                           'tabular flex items-center gap-0.5 text-xs font-semibold',
-                          out ? 'text-danger-ink' : low ? 'text-warn-ink' : 'text-subtle',
+                          out || low ? 'text-danger-ink' : soon ? 'text-warn-ink' : 'text-subtle',
                         )}
                       >
-                        {(out || low) && <AlertTriangle className="size-3" />}
+                        {(out || low || soon) && <AlertTriangle className="size-3" />}
                         {out ? 'Agotado' : formatQty(p.stock, p.unit)}
                       </span>
                     </div>

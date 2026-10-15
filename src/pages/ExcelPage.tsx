@@ -42,7 +42,8 @@ const COLUMN_HELP: { col: string; desc: string; example: string; required?: bool
   { col: 'Stock', desc: 'Unidades (o kilos) disponibles hoy.', example: '24' },
   { col: 'Rotacion', desc: 'Alta (se vende mucho), Media o Baja. Sirve para avisarte cuando se acaba.', example: 'Alta' },
   { col: 'Unidad', desc: 'Opcional: "un" (por unidad) o "kg" (a granel).', example: 'un' },
-  { col: 'StockMinimo', desc: 'Opcional: umbral de alerta propio para ese producto.', example: '5' },
+  { col: 'StockMinimo', desc: 'Opcional: se pone ROJO (muy poco) cuando quedan menos de esto. Vacío = automático.', example: '10' },
+  { col: 'StockAviso', desc: 'Opcional: se pone AMARILLO (queda poco) cuando quedan menos de esto. Vacío = automático.', example: '20' },
 ]
 
 export default function ExcelPage() {

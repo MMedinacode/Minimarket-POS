@@ -32,8 +32,10 @@ export interface Product {
   stock: number
   unit: Unit
   rotation: Rotation
-  /** Umbral de alerta manual. null = se calcula por rotación y velocidad de venta */
+  /** Rojo ("muy poco"): avisar cuando queden menos de esto. null = automático */
   minStock: number | null
+  /** Amarillo ("queda poco"): avisar cuando queden menos de esto. null = automático */
+  warnStock: number | null
   createdAt: string
   updatedAt: string
 }
@@ -89,8 +91,11 @@ export interface Expense {
 
 export interface Settings {
   businessName: string
-  /** Alerta de stock crítico por rotación: Alta < 10, Media < 5, Baja < 2 */
-  thresholds: Record<Rotation, number>
+  /**
+   * Avisos de stock que el dueño fijó por tipo de producto, con clave "categoría|unidad"
+   * (ej: "Fiambrería|kg": { red: 1, yellow: 2 }). Los que no están, son automáticos.
+   */
+  stockLevels: Record<string, { red: number; yellow: number }>
   /** Días de venta que el stock debe cubrir antes de alertar (usa la velocidad real) */
   coverageDays: number
   /** Días sin ventas para considerar un producto de "menor rotación" */
@@ -108,4 +113,5 @@ export interface AppData {
   isDemo: boolean
 }
 
-export type StockStatus = 'agotado' | 'critico' | 'ok'
+/** agotado y critico = rojo · cerca = amarillo · ok = verde */
+export type StockStatus = 'agotado' | 'critico' | 'cerca' | 'ok'

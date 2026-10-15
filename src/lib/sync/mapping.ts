@@ -1,5 +1,5 @@
 // Convierte las filas de Postgres (snake_case) al formato de la app.
-import { DEFAULT_SETTINGS } from '../../data/mockData'
+import { DEFAULT_SETTINGS, normalizeSettings } from '../../data/mockData'
 import type { AppData, Expense, ExpenseCategory, PaymentMethod, Product, Rotation, Sale, SaleItem, Settings, Unit } from '../../types'
 import type { PullResult, Row } from './types'
 
@@ -19,6 +19,7 @@ export function productFromRow(r: Row): Product {
     unit: (r.unit as Unit) ?? 'un',
     rotation: (r.rotation as Rotation) ?? 'Media',
     minStock: numOrNull(r.min_stock),
+    warnStock: numOrNull(r.warn_stock),
     createdAt: str(r.created_at),
     updatedAt: str(r.updated_at),
   }
@@ -53,8 +54,7 @@ export function expenseFromRow(r: Row): Expense {
 
 export function settingsFromStore(store: PullResult['store'], fallback: Settings = DEFAULT_SETTINGS): Settings {
   if (!store) return fallback
-  const s = (store.settings ?? {}) as Partial<Settings>
-  return { ...DEFAULT_SETTINGS, ...s, thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(s.thresholds ?? {}) } }
+  return normalizeSettings(store.settings as Partial<Settings> | undefined)
 }
 
 export function emptyCloudData(): AppData {

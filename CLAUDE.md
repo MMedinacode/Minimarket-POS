@@ -21,7 +21,7 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 64 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 71 tests (incluye SQL real en PGlite, sin Docker)
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
 npm run deploy:netlify   # build local (con .env) + publica en caja-minimarket.netlify.app
@@ -54,6 +54,10 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   repo) y el link `#/soporte?r=<código>.<firma>` (`pages/SupportLink.tsx`) o el mensaje pegado en
   `components/SupportHelp.tsx` permite crear una clave nueva sin borrar datos. Un uso, 1 hora, atado al equipo.
   `VITE_SUPPORT_WHATSAPP` y `VITE_SUPPORT_PUBLIC_KEY` viven en `.env` (no en el repo público).
+- `src/lib/stock.ts` — stock en 3 colores: rojo (`agotado`/`critico`, stock < `red`), amarillo (`cerca`, stock < `yellow`),
+  verde (`ok`). Números, por prioridad: del producto (`minStock` = rojo, `warnStock` = amarillo; si falta uno se deduce) >
+  `settings.stockLevels["categoría|unidad"]` (Ajustes → Avisos) > automático (`TYPE_LEVELS` por tipo × rotación, sube con la
+  velocidad de venta). `OrderModal` incluye los rojos y ofrece agregar los amarillos.
 - `src/lib/prices.ts` + `components/PriceRaiseModal.tsx` — "Subir precios" (Productos → Más opciones): % con
   redondeo hacia arriba; usa `updateProduct` con `{ price }` (no hay acción nueva) y "Deshacer" en el aviso.
 - `components/CashCountModal.tsx` — "Contar el cajón" en Caja: sencillo del inicio (pref local) + `expectedCash`;
@@ -95,6 +99,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/sync/sync.test.ts` — motor de sync contra PostgreSQL real (PGlite) con el mismo `schema.sql`.
 - `src/lib/ean13.test.ts` — códigos de barra comparados con JsBarcode (solo dev).
 - `src/lib/auth.test.ts` — clave, migración de la huella antigua y bloqueo.
+- `src/lib/logic.test.ts` también cubre los 3 colores (bordes, kilos, rotación, velocidad, prioridad producto/tipo/automático).
 - `src/lib/prices.test.ts` — subir precios con redondeo y la cuenta de "Contar el cajón".
 - `src/lib/backup.test.ts` — cuándo aparece y se pospone el aviso de respaldo.
 - `src/lib/sync/sync.test.ts` también cubre: páginas con horas empatadas, anular una venta ya borrada, numeración
@@ -122,5 +127,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   El motor (`engine.ts`) baja a lotes de 1 si un lote completo falla y aparta una operación tras 5 fallos.
 - Probar campos que actúan al "salir" (onBlur) en el panel del navegador: `el.focus()` no funciona si la ventana no
   tiene foco; disparar `new FocusEvent('focusin'/'focusout', { bubbles: true })`.
+- `scripts/generar-ejemplo.mjs` importa `src/data/mockData.ts` con Node directo: los imports de ese archivo deben llevar
+  la extensión `.ts` (si no, `npm run ejemplo` falla).
 - Copiar al portapapeles en Windows: `clip.exe` deja un BOM invisible; el script usa `Set-Clipboard` con el
   texto en una variable de entorno. En pruebas usar `--sin-copiar` para no pisar el portapapeles del dueño.

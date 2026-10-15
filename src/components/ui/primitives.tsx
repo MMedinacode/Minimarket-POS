@@ -1,6 +1,6 @@
 // Componentes base reutilizables (botones, tarjetas, inputs, badges...).
 import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
-import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { StockStatus } from '../../types'
 
@@ -196,7 +196,7 @@ export function Badge({ tone = 'neutral', className, children }: { tone?: Tone; 
   )
 }
 
-/** Estado de stock: siempre con ícono + texto, nunca solo color */
+/** Estado de stock: siempre con ícono + texto, nunca solo color (rojo, amarillo o verde) */
 export function StockBadge({ status, className }: { status: StockStatus; className?: string }) {
   if (status === 'agotado')
     return (
@@ -206,8 +206,14 @@ export function StockBadge({ status, className }: { status: StockStatus; classNa
     )
   if (status === 'critico')
     return (
+      <Badge tone="danger" className={className}>
+        <AlertTriangle /> Muy poco
+      </Badge>
+    )
+  if (status === 'cerca')
+    return (
       <Badge tone="warn" className={className}>
-        <AlertTriangle /> Queda poco
+        <AlertCircle /> Queda poco
       </Badge>
     )
   return (

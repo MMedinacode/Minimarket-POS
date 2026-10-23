@@ -141,6 +141,26 @@ export interface DeviceAccount {
   id: string
   email: string
 }
+/**
+ * Link del correo que no pudo abrir sesión aquí (quedó ?code=… o ?error=… en la dirección):
+ * pasa si se abrió en otro equipo o navegador, o si venció. Se explica y se limpia la dirección.
+ */
+function explainEmailLink(toast: ReturnType<typeof useToast>) {
+  const params = new URLSearchParams(window.location.search)
+  // Supabase a veces manda el error después del # (#error=…&error_code=otp_expired)
+  const hashError = new URLSearchParams(window.location.hash.slice(1)).has('error')
+  if (!params.has('code') && !params.has('error') && !hashError) return
+  if (params.has('error') || hashError) {
+    toast.error('Ese link del correo ya no sirve (venció o ya se usó). Pide uno nuevo.', { duration: 15_000 })
+  } else {
+    toast.info(
+      'Si era para activar tu cuenta: ya quedó activa, entra con tu correo y contraseña. Si era para cambiar la contraseña: ábrelo en el mismo equipo donde lo pediste.',
+      { duration: 20_000 },
+    )
+  }
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}${hashError ? '' : window.location.hash}`)
+}
+
 export function deviceAccount(): DeviceAccount | null {
   return readPref<DeviceAccount | null>('cuentaEquipo', null)
 }
@@ -350,6 +370,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           first = deviceAccount()
         }
         setUser(first)
+        explainEmailLink(toast)
         const { data: sub } = client.auth.onAuthStateChange((event, session) => {
           if (event === 'PASSWORD_RECOVERY') setRecovery(true)
           const next = toUser(session?.user)

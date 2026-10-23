@@ -130,7 +130,7 @@ function Main() {
   return (
     <>
       {screen}
-      <CloudPrompts />
+      <CloudPrompts unlocked={!supportToken && pinSet && authed} />
       <UpdatePrompt />
     </>
   )

@@ -21,9 +21,12 @@ export function getSupabase(): Promise<SupabaseClient> {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // Lee la sesión del link de confirmación / recuperación del correo
+        // Lee la sesión del link de confirmación / recuperación del correo.
+        // PKCE: el link solo abre sesión en el navegador que lo pidió (guarda un código secreto
+        // al pedirlo). Con 'implicit', un link armado con la sesión de OTRA cuenta la metía en la
+        // caja sin pedir nada.
         detectSessionInUrl: true,
-        flowType: 'implicit',
+        flowType: 'pkce',
         storageKey: 'mm-pos:auth',
       },
     }),

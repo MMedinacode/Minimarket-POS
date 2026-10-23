@@ -21,7 +21,9 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 71 tests (incluye SQL real en PGlite, sin Docker)
+npm test          # 72 tests (incluye SQL real en PGlite, sin Docker)
+npm run test:e2e  # 23 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
+npm run test:e2e:build   # las mismas contra la versión compilada (con CSP), en .e2e-dist/
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
 npm run deploy:netlify   # build local (con .env) + publica en caja-minimarket.netlify.app
@@ -30,7 +32,7 @@ npm run soporte -- 4821 9375   # link de soporte para un cliente que olvidó la 
 npm run soporte -- llaves      # crea las llaves de soporte (la pública va a .env)
 ```
 
-Flujo al terminar cambios: `npx tsc -b` → `npm test` → probar en el navegador (celular 375 px y
+Flujo al terminar cambios: `npx tsc -b` → `npm test` → `npm run test:e2e:build` → probar en el navegador (celular 375 px y
 computador) → commit → `git push` → `npm run deploy` → abrir el link público y verificar.
 
 ## Arquitectura
@@ -108,6 +110,16 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.
 
 ## Detalles que ya costaron tiempo
+
+- Supabase Auth usa `flowType: 'pkce'` (`src/lib/sync/supabase.ts`). NO volver a 'implicit': con implicit, un link con
+  `#access_token=…` de OTRA cuenta abría sesión en la caja bloqueada. Con PKCE el link del correo solo abre sesión en el
+  navegador que lo pidió; si se abre en otro, `explainEmailLink` (AppStore) lo explica y limpia la dirección.
+- CSP: `vite.config.ts` (`cspPlugin`, solo al compilar) agrega un `<meta>` con la huella del script del tema de
+  `index.html`; si cambias ese script la huella se recalcula sola. connect-src = 'self' + el host de `VITE_SUPABASE_URL`.
+  Las pruebas e2e fallan si la CSP bloquea algo. Nada de `eval`/`new Function` ni scripts de otros sitios.
+- `apply_ops` acepta máximo 500 operaciones por llamada, `pull_changes` páginas de 1 a 1000 y `upsert_product` rechaza
+  un `uid` distinto de `auth.uid()`.
+- Pruebas e2e: `e2e/helpers.ts` corta toda red externa (nunca tocan Supabase). Clave de prueba en ese archivo.
 
 - Tailwind v4: hijos de `.grid` tienen `min-width: 0` global (si no, tablas/gráficos estiran la página en celular).
 - `max-width` no funciona en celdas `<td>`: limitar un `<div>` interno.

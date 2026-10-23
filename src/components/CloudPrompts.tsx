@@ -10,11 +10,13 @@ import { useToast } from './ui/Toast'
  * Avisos de la cuenta que pueden aparecer en cualquier pantalla:
  * - Subir los datos que había en este dispositivo a una cuenta vacía.
  * - Crear una contraseña nueva (al llegar desde el correo de recuperación).
+ * Subir datos solo se ofrece con la caja abierta (con la clave puesta): si no, cualquiera
+ * frente a la pantalla bloqueada podría mandar los datos del negocio a una cuenta.
  */
-export function CloudPrompts() {
+export function CloudPrompts({ unlocked }: { unlocked: boolean }) {
   return (
     <>
-      <UploadLocalPrompt />
+      {unlocked && <UploadLocalPrompt />}
       <RecoveryPrompt />
     </>
   )
@@ -83,7 +85,7 @@ function RecoveryPrompt() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (password.length < 6) return setError('Mínimo 6 caracteres')
+    if (password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres')
     setBusy(true)
     const err = await api.updatePassword(password)
     setBusy(false)

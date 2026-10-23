@@ -139,6 +139,10 @@ alter table public.products add column if not exists warn_stock numeric;
 create or replace function public.upsert_product(uid uuid, p jsonb, with_stock boolean) returns void
 language plpgsql set search_path = public as $$
 begin
+  -- Solo para la propia cuenta (se puede llamar por la API: que nunca sirva para otra tienda)
+  if uid is distinct from auth.uid() then
+    raise exception 'No autorizado';
+  end if;
   insert into products as t (owner_id, id, barcode, name, category, cost, price, stock, unit, rotation, min_stock, warn_stock, created_at, deleted)
   values (
     uid,
@@ -188,6 +192,10 @@ declare
 begin
   if uid is null then
     raise exception 'Debes iniciar sesión';
+  end if;
+  -- La app manda de a 50; un tope evita que una cuenta sature la base de todos
+  if jsonb_array_length(ops) > 500 then
+    raise exception 'Demasiadas operaciones de una vez (máximo 500)';
   end if;
   insert into stores (owner_id) values (uid) on conflict (owner_id) do nothing;
   -- Una sola subida a la vez por cuenta: dos cajas que vuelven a tener internet al mismo
@@ -375,6 +383,8 @@ begin
   if uid is null then
     raise exception 'Debes iniciar sesión';
   end if;
+  -- Entre 1 y 1000 por página (con 0 o negativo el "offset" fallaría; muy grande cargaría la base)
+  max_rows := least(greatest(coalesce(max_rows, 1000), 1), 1000);
   return jsonb_build_object(
     'store', (select to_jsonb(s) from stores s where s.owner_id = uid),
     -- Cada página termina en la hora de su fila N° max_rows e incluye TODAS las filas con esa misma

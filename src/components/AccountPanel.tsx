@@ -77,7 +77,8 @@ export function AccountPanel({
             </>
           ) : (
             <>
-              Enviamos un link a <strong className="text-fg">{email}</strong> para crear una contraseña nueva.
+              Enviamos un link a <strong className="text-fg">{email}</strong> para crear una contraseña nueva. Ábrelo en{' '}
+              <strong className="text-fg">este mismo equipo</strong> (en otro no funciona).
             </>
           )}
         </p>

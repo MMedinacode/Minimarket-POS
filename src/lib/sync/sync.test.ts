@@ -305,8 +305,20 @@ describe('sincronización con PostgreSQL real', () => {
     expect(a.stock()).toBe(20)
     // Sin sesión no se puede usar la API
     await expect(asUser('', 'select public.apply_ops($1::jsonb)', ['[]'])).rejects.toThrow()
+    // upsert_product se puede llamar por la API: con el id de OTRA cuenta se rechaza
+    await expect(
+      asUser(USER_B, `select public.upsert_product($1::uuid, '{"id":"coca","name":"x"}'::jsonb, true)`, [USER_A]),
+    ).rejects.toThrow('No autorizado')
     a.engine.destroy()
     b.engine.destroy()
+  })
+
+  it('pone topes: máximo 500 operaciones por envío y páginas de 1 a 1000 filas', async () => {
+    const many = JSON.stringify(Array.from({ length: 501 }, (_, i) => ({ opId: `op${i}`, action: { type: 'deleteProduct', id: 'x' } })))
+    await expect(asUser(USER_A, 'select public.apply_ops($1::jsonb)', [many])).rejects.toThrow('Demasiadas operaciones')
+    // max_rows 0 o negativo ya no rompe la consulta
+    const [row] = await asUser<{ r: PullResult }>(USER_A, `select public.pull_changes('{}'::jsonb, 0, 0) as r`)
+    expect(row.r.products).toEqual([])
   })
 
   it('al reabrir la app offline se ve la copia local y la cola pendiente', async () => {

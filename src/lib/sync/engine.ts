@@ -127,8 +127,17 @@ export class SyncEngine {
 
   /** Registra una acción del usuario: se ve al instante y se sube cuando se pueda */
   dispatch(action: SyncAction) {
-    if (this.destroyed) return
-    this.pending.push({ opId: uid(), at: Date.now(), action })
+    this.dispatchMany([action])
+  }
+
+  /**
+   * Varias acciones de una vez (ej. "Subir precios" a 3.000 productos): se recalcula y se guarda
+   * la cola UNA vez. Con dispatch uno por uno cada acción recalculaba toda la cola y la pestaña se congelaba.
+   */
+  dispatchMany(actions: SyncAction[]) {
+    if (this.destroyed || actions.length === 0) return
+    const at = Date.now()
+    for (const action of actions) this.pending.push({ opId: uid(), at, action })
     this.storage.savePending(this.pending).catch((err: unknown) => {
       console.error('No se pudo guardar la cola', err)
       this.onOpFailure({ type: 'guardar-local', error: err instanceof Error ? err.message : String(err) })

@@ -9,14 +9,21 @@ import { summarizeDay } from '../lib/analytics'
 import { addDays, cn, dayKey, formatCLP, formatDateLong, formatQty, formatTime, lineTotal, parseDayKey } from '../lib/utils'
 import { useActions, useData } from '../store/AppStore'
 import { ALL_PAYMENT_METHODS, type Sale } from '../types'
+import { useToday } from '../hooks/useToday'
 
 /** Caja del día: cuánto se vendió, cuánto se gastó y cuánto debería haber en el cajón */
 export default function Cash() {
   const { sales, expenses } = useData()
   const actions = useActions()
   const toast = useToast()
-  const todayKey = dayKey()
+  const todayKey = useToday()
   const [day, setDay] = useState(todayKey)
+  // Pasó la medianoche con Caja abierta en "hoy": seguir mostrando el día nuevo
+  const [shownToday, setShownToday] = useState(todayKey)
+  if (shownToday !== todayKey) {
+    setShownToday(todayKey)
+    if (day === shownToday) setDay(todayKey)
+  }
   const isToday = day === todayKey
 
   const summary = useMemo(() => summarizeDay(sales, expenses, day), [sales, expenses, day])

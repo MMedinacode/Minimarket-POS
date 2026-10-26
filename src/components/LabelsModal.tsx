@@ -141,11 +141,11 @@ function Inner({ onClose, preselect }: { onClose: () => void; preselect: string[
                       </Button>
                     ) : (
                       <div className="flex items-center rounded-lg border border-line-strong bg-surface">
-                        <button type="button" className="grid size-8 place-items-center" onClick={() => setN(p.id, n - 1)} aria-label="Una menos">
+                        <button type="button" className="grid size-10 place-items-center" onClick={() => setN(p.id, n - 1)} aria-label="Una menos">
                           <Minus className="size-4" />
                         </button>
                         <span className="tabular w-8 text-center text-sm font-bold">{n}</span>
-                        <button type="button" className="grid size-8 place-items-center" onClick={() => setN(p.id, n + 1)} aria-label="Una más">
+                        <button type="button" className="grid size-10 place-items-center" onClick={() => setN(p.id, n + 1)} aria-label="Una más">
                           <Plus className="size-4" />
                         </button>
                       </div>

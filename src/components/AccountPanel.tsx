@@ -78,7 +78,7 @@ export function AccountPanel({
           ) : (
             <>
               Enviamos un link a <strong className="text-fg">{email}</strong> para crear una contraseña nueva. Ábrelo en{' '}
-              <strong className="text-fg">este mismo equipo</strong> (en otro no funciona).
+              <strong className="text-fg">este mismo equipo y en esta misma app o navegador</strong> (si tienes la caja instalada como ícono, el link no funciona en otro navegador: pide el correo desde donde lo vas a abrir).
             </>
           )}
         </p>

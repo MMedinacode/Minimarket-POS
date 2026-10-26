@@ -139,7 +139,15 @@ export async function loadData(): Promise<AppData | null> {
     }
   }
   useFallback = fromLs
-  if (!raw.products || !raw.settings) return null
+  if (!raw.products || !raw.settings) {
+    // IndexedDB falló y no hay copia, pero el equipo YA se usaba (tiene clave): NO es la primera vez.
+    // Si se devolviera null se cargarían los ejemplos y el autoguardado los escribiría encima de
+    // las ventas reales cuando IndexedDB vuelva a responder.
+    if (!idbOk && readPref<unknown>('pwd', null) !== null) {
+      throw new Error('El navegador no dejó leer los datos guardados. Cierra el navegador, ábrelo de nuevo y toca "Volver a intentar".')
+    }
+    return null
+  }
   const data: AppData = {
     products: raw.products as AppData['products'],
     sales: (raw.sales as AppData['sales']) ?? [],

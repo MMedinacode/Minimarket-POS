@@ -189,7 +189,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
           {query && (
             <button
               type="button"
-              className="absolute top-1/2 right-2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2"
+              className="absolute top-1/2 right-2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2"
               onClick={() => setQuery('')}
               aria-label="Borrar búsqueda"
             >
@@ -224,7 +224,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
             onClick={() => setFilter(c.value)}
             aria-pressed={filter === c.value}
             className={cn(
-              'flex h-10 items-center gap-1.5 rounded-full border px-4 font-semibold transition-colors',
+              'flex h-11 items-center gap-1.5 rounded-full border px-4 font-semibold transition-colors',
               filter === c.value ? 'border-fg bg-fg text-bg' : 'border-line-strong bg-surface text-muted hover:text-fg',
             )}
           >

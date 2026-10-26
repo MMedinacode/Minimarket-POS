@@ -126,7 +126,9 @@ export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin
         {step === 'pin' && (
           <form onSubmit={submitPin} noValidate>
             <Title>{onlyPin ? 'Crea tu clave nueva' : 'Crea tu clave'}</Title>
-            <p className="mt-1 text-muted">La vas a escribir cada vez que abras la caja. No se la muestres a los clientes.</p>
+            <p className="mt-1 text-muted">
+              La vas a escribir cada vez que abras la caja. Anótala en tu cuaderno y no se la muestres a los clientes.
+            </p>
             {!cryptoAvailable() && (
               <p className="mt-3 rounded-xl bg-danger-soft p-3 text-sm text-danger-ink">
                 Abre la caja desde su dirección segura (que empieza con https://) para poder crear la clave.
@@ -189,7 +191,15 @@ export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin
           >
             <Title>¿Cómo se llama tu negocio?</Title>
             <p className="mt-1 text-muted">Aparece arriba en la pantalla. Lo puedes cambiar cuando quieras.</p>
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Ej: Bazar Rosita" maxLength={40} className="mt-5 h-14 text-lg" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              aria-label="Nombre del negocio"
+              placeholder="Ej: Bazar Rosita"
+              maxLength={40}
+              className="mt-5 h-14 text-lg"
+            />
             <Button type="submit" variant="primary" size="lg" className="mt-5 w-full">
               Siguiente
             </Button>
@@ -215,6 +225,12 @@ export default function Setup({ onDone, onlyPin }: { onDone: () => void; onlyPin
                 disabled={busy}
               />
             </div>
+            {/* Guardar la clave cifrada tarda 1 o 2 segundos en celulares lentos: que se note que está trabajando */}
+            {busy && (
+              <p className="mt-4 flex items-center justify-center gap-2 text-muted" role="status">
+                <Loader2 className="size-5 animate-spin" /> Preparando tu caja…
+              </p>
+            )}
             <ErrorText>{error}</ErrorText>
           </div>
         )}

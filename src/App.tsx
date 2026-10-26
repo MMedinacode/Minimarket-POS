@@ -73,6 +73,28 @@ function Main() {
     setAuthed(false)
   }
 
+  // La sesión dura 12 horas: si la caja quedó abierta de noche, se vuelve a pedir la clave
+  // (antes solo se revisaba al recargar la página). Nunca en medio de una venta: solo si
+  // nadie la tocó en los últimos 5 minutos.
+  useEffect(() => {
+    if (!authed) return
+    let lastUse = Date.now()
+    const touched = () => {
+      lastUse = Date.now()
+    }
+    const check = () => {
+      if (!hasValidSession() && Date.now() - lastUse > 5 * 60_000) setAuthed(false)
+    }
+    const timer = setInterval(check, 60_000)
+    window.addEventListener('pointerdown', touched)
+    window.addEventListener('keydown', touched)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('pointerdown', touched)
+      window.removeEventListener('keydown', touched)
+    }
+  }, [authed])
+
   let screen
   if (supportToken) {
     screen = <SupportLink token={supportToken} onUnlocked={supportUnlocked} onClose={() => setSupportToken(null)} />

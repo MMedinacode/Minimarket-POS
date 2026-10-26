@@ -41,6 +41,8 @@ test.describe('Vender (productos por unidad)', () => {
     await expect(comprobante).toBeVisible()
     await expect(comprobante.getByText('Vuelto a entregar')).toBeVisible()
     await expect(comprobante.getByText('$2.000').first()).toBeVisible()
+    // En efectivo el SII exige boleta: la caja lo recuerda con el monto
+    await expect(comprobante.getByText(/Recuerda darle su boleta por \$3\.000/)).toBeVisible()
     await comprobante.getByRole('button', { name: 'Nueva venta' }).click()
     await expect(comprobante).toBeHidden()
 

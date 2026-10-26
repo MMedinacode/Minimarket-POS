@@ -19,11 +19,11 @@ const VARIANTS: Record<Variant, string> = {
 }
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-9 px-3 text-sm gap-1.5 rounded-lg',
+  sm: 'h-11 px-3 text-sm gap-1.5 rounded-lg', // 44 px: dedos de gente mayor
   md: 'h-11 px-4 text-[0.95rem] gap-2 rounded-xl',
   lg: 'h-14 px-6 text-lg gap-2.5 rounded-xl',
   icon: 'size-11 rounded-xl',
-  'icon-sm': 'size-9 rounded-lg',
+  'icon-sm': 'size-11 rounded-lg',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -251,7 +251,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cn(
             'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors [&_svg]:size-4',
-            size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3 text-sm',
+            size === 'sm' ? 'h-10 px-2.5 text-xs' : 'h-11 px-3 text-sm',
             value === o.value ? 'bg-surface text-fg shadow-sm' : 'text-subtle hover:text-fg',
           )}
         >

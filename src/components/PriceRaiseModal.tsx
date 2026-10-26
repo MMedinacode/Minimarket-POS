@@ -35,21 +35,24 @@ export function PriceRaiseModal({ open, onClose }: { open: boolean; onClose: () 
 
   const categories = useMemo(() => [...new Set(products.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'es')), [products])
   const pct = Number(percent.replace(',', '.'))
+  // Más de 100 % casi siempre es un error de tipeo ("100" en vez de "10")
+  const tooHigh = pct > 100
   const changes = useMemo(() => {
+    if (tooHigh) return []
     const list = category === 'all' ? products : products.filter((p) => p.category === category)
     return raisePrices(list, pct, Number(roundTo))
-  }, [products, category, pct, roundTo])
+  }, [products, category, pct, roundTo, tooHigh])
 
   const apply = () => {
     const done = changes
-    for (const c of done) actions.updateProduct(c.id, { price: c.after })
+    actions.updateProducts(done.map((c) => ({ id: c.id, patch: { price: c.after } })))
     onClose()
     toast.success(`Listo: ${done.length} ${done.length === 1 ? 'precio subido' : 'precios subidos'}`, {
       duration: 10_000,
       action: {
         label: 'Deshacer',
         onClick: () => {
-          for (const c of done) actions.updateProduct(c.id, { price: c.before })
+          actions.updateProducts(done.map((c) => ({ id: c.id, patch: { price: c.before } })))
           toast.info('Se dejaron los precios como estaban')
         },
       },
@@ -112,7 +115,9 @@ export function PriceRaiseModal({ open, onClose }: { open: boolean; onClose: () 
         </div>
 
         <div className="rounded-xl bg-surface-2 p-3">
-          {changes.length === 0 ? (
+          {tooHigh ? (
+            <p className="text-center font-semibold text-danger-ink">Máximo 100 %. Revisa el número: ¿quisiste poner {Math.round(pct / 10)} %?</p>
+          ) : changes.length === 0 ? (
             <p className="text-center text-muted">Escribe cuánto quieres subir para ver cómo quedan los precios.</p>
           ) : (
             <>

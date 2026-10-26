@@ -66,6 +66,8 @@ const PAYMENT_ICONS: Record<PaymentMethod, typeof Banknote> = {
 }
 
 const FREQUENT = '__frecuentes__'
+// Máximo de botones por categoría (el resto se encuentra buscando)
+const CATEGORY_LIMIT = 120
 const stripZeros = (code: string) => code.replace(/^0+/, '')
 
 /** Montos sugeridos para pago en efectivo: exacto y los billetes que calzan */
@@ -292,8 +294,13 @@ export default function POS() {
     if (category === FREQUENT) {
       return [...products].sort((a, b) => (velocity.get(b.id) ?? 0) - (velocity.get(a.id) ?? 0) || a.name.localeCompare(b.name, 'es')).slice(0, 24)
     }
-    return products.filter((p) => p.category === category).sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    // Con miles de productos dibujar todos los botones pone lento el celular: se muestran los primeros
+    return products.filter((p) => p.category === category).sort((a, b) => a.name.localeCompare(b.name, 'es')).slice(0, CATEGORY_LIMIT)
   }, [products, query, category, velocity])
+  const hiddenInCategory =
+    !query.trim() && category !== FREQUENT && visible.length === CATEGORY_LIMIT
+      ? products.filter((p) => p.category === category).length - CATEGORY_LIMIT
+      : 0
 
   const onSearchKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') setQuery('')
@@ -485,7 +492,7 @@ export default function POS() {
             {query ? (
               <button
                 type="button"
-                className="absolute top-1/2 right-2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2"
+                className="absolute top-1/2 right-2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2"
                 onClick={() => setQuery('')}
                 aria-label="Limpiar búsqueda"
               >
@@ -543,7 +550,7 @@ export default function POS() {
                 aria-selected={category === c}
                 onClick={() => setCategory(c)}
                 className={cn(
-                  'h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold transition-colors',
+                  'h-11 shrink-0 rounded-full border px-3.5 text-sm font-semibold transition-colors',
                   category === c ? 'border-fg bg-fg text-bg' : 'border-line-strong bg-surface text-muted hover:text-fg',
                 )}
               >
@@ -612,6 +619,11 @@ export default function POS() {
                   </button>
                 )
               })}
+              {hiddenInCategory > 0 && (
+                <p className="col-span-full py-3 text-center text-sm text-muted">
+                  Y {hiddenInCategory} productos más en esta categoría. Escribe el nombre arriba o escanea el código para encontrarlos.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -772,7 +784,7 @@ function CustomItemModal({
             Cancelar
           </Button>
           <Button variant="primary" onClick={submit} disabled={!ok}>
-            Agregar {ok && formatCLP(price! * qty)}
+            Agregar {ok && formatCLP(lineTotal(qty, price!))}
           </Button>
         </>
       }
@@ -847,7 +859,7 @@ function WeightModal({
             Cancelar
           </Button>
           <Button variant="primary" onClick={submit} disabled={!ok}>
-            Agregar {ok && formatCLP(Math.round(kg! * product.price))}
+            Agregar {ok && formatCLP(lineTotal(kg!, product.price))}
           </Button>
         </>
       }
@@ -927,6 +939,12 @@ function ReceiptModal({ sale, onClose }: { sale: Sale | null; onClose: () => voi
         <span className="font-semibold">Total · {sale.payment}</span>
         <span className="tabular text-2xl font-extrabold">{formatCLP(sale.total)}</span>
       </div>
+      {/* El voucher de la tarjeta sirve de boleta; en efectivo o transferencia el SII exige boleta aparte */}
+      {(sale.payment === 'Efectivo' || sale.payment === 'Transferencia') && (
+        <p className="mt-3 rounded-xl bg-info-soft p-3 text-center text-sm text-info-ink">
+          Recuerda darle su <strong>boleta por {formatCLP(sale.total)}</strong> (en tu máquina o en la app del SII). Esta caja no da boletas.
+        </p>
+      )}
       <p className="mt-3 text-center text-xs text-subtle">Escanea el siguiente producto para empezar otra venta.</p>
     </Modal>
   )

@@ -61,8 +61,12 @@ const StoreContext = createContext<StoreValue | null>(null)
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('mm-pos-sync') : null
 const TAB_ID = uid()
 
-function createActions(dispatch: (a: Action) => void) {
+function createActions(dispatch: (a: Action) => void, dispatchMany: (list: Action[]) => void) {
   return {
+    /** Cambia varios productos de una vez (Subir precios y su Deshacer) */
+    updateProducts(changes: { id: string; patch: ProductPatch }[]) {
+      dispatchMany(changes.map(({ id, patch }) => ({ type: 'updateProduct', id, patch })))
+    },
     addProduct(input: NewProduct): Product {
       const iso = new Date().toISOString()
       const product: Product = { ...input, id: uid(), createdAt: iso, updatedAt: iso }
@@ -154,7 +158,7 @@ function explainEmailLink(toast: ReturnType<typeof useToast>) {
     toast.error('Ese link del correo ya no sirve (venció o ya se usó). Pide uno nuevo.', { duration: 15_000 })
   } else {
     toast.info(
-      'Si era para activar tu cuenta: ya quedó activa, entra con tu correo y contraseña. Si era para cambiar la contraseña: ábrelo en el mismo equipo donde lo pediste.',
+      'Si era para activar tu cuenta: ya quedó activa, entra con tu correo y contraseña. Si era para cambiar la contraseña: pide el correo de nuevo desde este mismo navegador y abre el link aquí.',
       { duration: 20_000 },
     )
   }
@@ -286,7 +290,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       dispatchLocal(action)
     }
   }, [])
-  const actions = useMemo(() => createActions(dispatch), [dispatch])
+  const dispatchMany = useCallback((list: Action[]) => {
+    if (modeRef.current === 'cloud') {
+      engineRef.current?.dispatchMany(list.filter((a) => a.type !== 'hydrate'))
+    } else {
+      for (const a of list) dispatchLocal(a) // React junta todo en un solo dibujo
+    }
+  }, [])
+  const actions = useMemo(() => createActions(dispatch, dispatchMany), [dispatch, dispatchMany])
   const cloudApi = useMemo(
     () =>
       createCloudApi({
@@ -471,6 +482,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       <FullScreen>
         <p className="text-lg font-semibold">No se pudieron cargar los datos</p>
         <p className="mt-1 text-muted">{loadError}</p>
+        <p className="mt-1 text-sm text-muted">Tus ventas no se borraron: solo no se pudieron abrir esta vez.</p>
+        <button
+          type="button"
+          className="mt-4 inline-flex h-12 items-center gap-2 rounded-xl bg-brand px-5 font-semibold text-on-brand"
+          onClick={() => window.location.reload()}
+        >
+          <RotateCcw className="size-5" /> Volver a intentar
+        </button>
       </FullScreen>
     )
   }

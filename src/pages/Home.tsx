@@ -7,8 +7,9 @@ import { OrderModal } from '../components/OrderModal'
 import { navigate } from '../hooks/useHashRoute'
 import { summarizeDay } from '../lib/analytics'
 import { isAlert, isWarning } from '../lib/stock'
-import { cn, dayKey, formatCLP, formatDateLong } from '../lib/utils'
+import { cn, formatCLP, formatDateLong } from '../lib/utils'
 import { useCloud, useData, useDerived } from '../store/AppStore'
+import { useToday } from '../hooks/useToday'
 
 /** Pantalla de inicio: lo importante del día y botones grandes para cada tarea */
 export default function Home() {
@@ -18,7 +19,7 @@ export default function Home() {
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
 
-  const today = dayKey()
+  const today = useToday()
   const day = useMemo(() => summarizeDay(sales, expenses, today), [sales, expenses, today])
   // Rojo: hay que pedir ya · Amarillo: pedir pronto
   const { running, soon } = useMemo(() => {

@@ -26,8 +26,8 @@ function restoreValue(el: Editable, value: string) {
  * Detecta lectores de código de barras tipo pistola (USB o Bluetooth).
  *
  * Estas pistolas se comportan como un teclado que escribe MUY rápido
- * (menos de 50 ms entre teclas) y terminan con Enter. Una persona
- * no escribe tan rápido, así que así se distingue una de otra.
+ * (menos de 70 ms entre teclas; las Bluetooth baratas son algo más lentas)
+ * y terminan con Enter. Una persona no escribe tan rápido, así que así se distingue una de otra.
  *
  * - Funciona sin que el cursor esté en ningún campo.
  * - Si el cursor estaba en otro campo (ej: "monto recibido"), se deshace lo
@@ -35,7 +35,7 @@ function restoreValue(el: Editable, value: string) {
  * - Los inputs con el atributo data-scan-target reciben el código tal cual
  *   (ej: el campo "código de barras" del formulario de producto).
  */
-export function useBarcodeScanner({ onScan, enabled = true, minLength = 4, maxAvgInterval = 50 }: Options) {
+export function useBarcodeScanner({ onScan, enabled = true, minLength = 4, maxAvgInterval = 70 }: Options) {
   const onScanRef = useRef(onScan)
   useEffect(() => {
     onScanRef.current = onScan

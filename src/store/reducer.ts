@@ -86,18 +86,25 @@ export function reducer(state: AppData, action: Action): AppData {
       // Idempotente: si la venta ya está (reintento), no se descuenta de nuevo
       if (state.sales.some((s) => s.id === action.sale.id)) return state
       const number = state.sales.reduce((max, s) => Math.max(max, s.number), 0) + 1
-      const sold = new Map<string, number>()
-      for (const it of action.sale.items) sold.set(it.productId, (sold.get(it.productId) ?? 0) + it.qty)
       const allowNegative = state.settings.allowNegativeStock
+      const byId = new Map(state.products.map((p) => [p.id, p]))
+      // Línea por línea, igual que apply_ops: cada una anota cuánto se descontó de verdad
+      const stockNow = new Map<string, number>()
+      const items = action.sale.items.map((it) => {
+        const p = byId.get(it.productId)
+        if (!p) return { ...it, deducted: 0 } // producto borrado: no hay stock que descontar
+        const prev = stockNow.get(p.id) ?? p.stock
+        let next = roundQty(prev - it.qty, p.unit)
+        if (!allowNegative) next = Math.max(0, next)
+        stockNow.set(p.id, next)
+        return { ...it, deducted: roundQty(prev - next, p.unit) }
+      })
       return {
         ...state,
-        sales: [...state.sales, { ...action.sale, number }],
+        sales: [...state.sales, { ...action.sale, items, number }],
         products: state.products.map((p) => {
-          const qty = sold.get(p.id)
-          if (!qty) return p
-          let stock = roundQty(p.stock - qty, p.unit)
-          if (!allowNegative) stock = Math.max(0, stock)
-          return { ...p, stock, updatedAt: action.sale.date }
+          const stock = stockNow.get(p.id)
+          return stock === undefined ? p : { ...p, stock, updatedAt: action.sale.date }
         }),
       }
     }
@@ -106,7 +113,8 @@ export function reducer(state: AppData, action: Action): AppData {
       const sale = state.sales.find((s) => s.id === action.id)
       if (!sale || sale.voided) return state
       const back = new Map<string, number>()
-      for (const it of sale.items) back.set(it.productId, (back.get(it.productId) ?? 0) + it.qty)
+      // Se devuelve lo que se descontó (no lo vendido): si no alcanzaba, no se inventa stock
+      for (const it of sale.items) back.set(it.productId, (back.get(it.productId) ?? 0) + (it.deducted ?? it.qty))
       return {
         ...state,
         sales: state.sales.map((s) => (s.id === action.id ? { ...s, voided: true, voidedAt: now() } : s)),

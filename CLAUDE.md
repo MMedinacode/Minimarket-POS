@@ -21,8 +21,8 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 72 tests (incluye SQL real en PGlite, sin Docker)
-npm run test:e2e  # 23 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
+npm test          # 74 tests (incluye SQL real en PGlite, sin Docker)
+npm run test:e2e  # 25 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
 npm run test:e2e:build   # las mismas contra la versión compilada (con CSP), en .e2e-dist/
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
@@ -88,7 +88,9 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
    el soporte con un secreto compartido (HMAC): el repo y la app son públicos; solo la llave pública va en el front.
    "Olvidé mi clave → Entrar con mi cuenta" acepta SOLO la cuenta de ese equipo (pref `cuentaEquipo`,
    `verifyOwner` con un cliente Supabase aparte que no reemplaza la sesión): si no, cualquiera crearía una cuenta propia.
-7. Cantidades: usar `parseQty(texto, unidad)` (en kilos el punto es decimal: "1.250" = 1,25 kg) y `lineTotal(qty, precio)`
+7. Cada línea de una venta guarda `deducted` (cuánto se descontó de verdad; si no alcanzaba, menos que `qty`).
+   Anular devuelve `deducted` (o `qty` en ventas antiguas): el reducer y `apply_ops` lo calculan igual.
+9. Cantidades: usar `parseQty(texto, unidad)` (en kilos el punto es decimal: "1.250" = 1,25 kg) y `lineTotal(qty, precio)`
    para el total de cada línea (redondeo exacto sobre gramos). `parseLocaleNumber` es para precios.
 8. Importar Excel nunca pisa con valores por defecto lo que el archivo no traía (`keep` en `ProductDraft`), y
    "Reemplazar todo" conserva el id de los productos que ya existían (las ventas antiguas apuntan a ese id).

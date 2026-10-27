@@ -243,6 +243,13 @@ function ImportPreview({ fileName, sheetName, result, onClose }: { fileName: str
     [clearingDemo, products, valid, mode],
   )
 
+  // Productos que quedarían en 0 porque el Excel no traía su stock (ej. la lista de precios del proveedor)
+  const zeroStock = useMemo(() => {
+    const touched = mode === 'replace' || clearingDemo ? outcome.products : outcome.changed
+    const noStockInFile = new Set(valid.filter((r) => r.draft!.keep?.includes('stock')).map((r) => normalizeText(r.draft!.name)))
+    return touched.filter((p) => p.stock <= 0 && noStockInFile.has(normalizeText(p.name))).length
+  }, [mode, clearingDemo, outcome, valid])
+
   const apply = () => {
     if (clearingDemo) actions.endDemo(false)
     // "Reemplazar" manda el inventario completo; "actualizar" solo lo que venía en el Excel
@@ -306,6 +313,16 @@ function ImportPreview({ fileName, sheetName, result, onClose }: { fileName: str
         Se eliminarán <strong className="text-fg">{outcome.removed} productos</strong> que tienes ahora y no están en el Excel, con su
         stock. Si solo quieres agregar o actualizar, elige «Actualizar y agregar».
       </ConfirmDialog>
+      {zeroStock > 0 && (
+        <div className="mb-3 flex gap-3 rounded-xl bg-warn-soft p-4 text-sm text-warn-ink">
+          <AlertTriangle className="size-5 shrink-0" />
+          <p>
+            <strong>{zeroStock === 1 ? "1 producto va" : `${zeroStock} productos van`} a quedar con 0 unidades</strong> (tu Excel no dice cuántos tienes). Así la caja los
+            muestra como agotados y <strong>no deja venderlos</strong>. Agrega la columna <span className="font-mono">Stock</span> al
+            Excel, o después de importar usa «Llegó mercadería» para sumar lo que tienes.
+          </p>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryBox tone="ok" icon={<CheckCircle2 />} value={valid.length} label="listos para importar" />
         <SummaryBox tone="warn" icon={<AlertTriangle />} value={withWarnings.length} label="con advertencias (se importan)" />

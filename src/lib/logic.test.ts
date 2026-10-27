@@ -188,6 +188,16 @@ describe('reducer', () => {
     expect(voided.sales[0].voided).toBe(true)
     expect(reducer(voided, { type: 'voidSale', id: 's1' }).products[0].stock).toBe(10)
   })
+  it('anular una venta que no alcanzaba devuelve solo lo que se descontó', () => {
+    // Había 10 y se vendieron 15: quedó en 0 (se descontaron 10). Al anular vuelve a 10, no a 15.
+    const { number: _n, ...s } = sale({ items: [{ ...sale().items[0], qty: 15 }] })
+    const sold = reducer(base, { type: 'registerSale', sale: s })
+    expect(sold.sales[0].items[0].deducted).toBe(10)
+    expect(reducer(sold, { type: 'voidSale', id: 's1' }).products[0].stock).toBe(10)
+    // Una venta antigua (sin "deducted") devuelve lo vendido, como antes
+    const old = { ...sold, sales: [{ ...sold.sales[0], items: [{ ...sale().items[0], qty: 2 }] }] }
+    expect(reducer(old, { type: 'voidSale', id: 's1' }).products[0].stock).toBe(2)
+  })
   it('no deja stock negativo salvo que se permita', () => {
     const { number: _n, ...s } = sale({ items: [{ ...sale().items[0], qty: 15 }] })
     expect(reducer(base, { type: 'registerSale', sale: s }).products[0].stock).toBe(0)

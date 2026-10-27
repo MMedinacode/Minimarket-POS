@@ -49,6 +49,11 @@ export interface SaleItem {
   qty: number
   unitPrice: number
   unitCost: number
+  /**
+   * Lo que de verdad se descontó del stock (lo anota la caja al vender). Puede ser menos que qty si
+   * no alcanzaba (el stock no baja de 0). Al anular se devuelve esto. Ventas antiguas: no lo traen (= qty).
+   */
+  deducted?: number
 }
 
 export interface Sale {

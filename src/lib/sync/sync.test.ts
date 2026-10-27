@@ -201,6 +201,22 @@ describe('sincronización con PostgreSQL real', () => {
     b.engine.destroy()
   })
 
+  it('anular una venta que no alcanzaba devuelve solo lo descontado (igual que la app)', async () => {
+    const a = device(USER_A)
+    await a.engine.start()
+    a.engine.dispatch({ type: 'addProduct', product: product({ stock: 1 }) })
+    a.engine.dispatch({ type: 'registerSale', sale: sale('v1', 3) })
+    await a.engine.syncNow()
+    expect(a.stock()).toBe(0)
+    const [row] = await asUser<{ items: { deducted: number }[] }>(USER_A, `select items from sales where id = 'v1'`)
+    expect(row.items[0].deducted).toBe(1)
+    a.engine.dispatch({ type: 'voidSale', id: 'v1' })
+    expect(a.stock()).toBe(1) // en pantalla, antes de subir
+    await a.engine.syncNow()
+    expect(a.stock()).toBe(1) // y en el servidor
+    a.engine.destroy()
+  })
+
   it('editar el precio no pisa el stock que cambió otra caja', async () => {
     const bus = new Set<() => void>()
     const a = device(USER_A, bus)

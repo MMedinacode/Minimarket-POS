@@ -189,6 +189,10 @@ declare
   q         numeric;
   prev_err  text;
   errors    jsonb := '[]'::jsonb;
+  prev_stock numeric;
+  prev_unit  text;
+  next_stock numeric;
+  new_items  jsonb;
 begin
   if uid is null then
     raise exception 'Debes iniciar sesión';
@@ -278,15 +282,25 @@ begin
                   (p->>'cost')::numeric, p->>'payment', (p->>'received')::numeric, (p->>'change')::numeric, false)
           on conflict (owner_id, id) do nothing;
           if found then
-            -- EL punto clave: se RESTA lo vendido al stock que hay en el servidor
+            -- EL punto clave: se RESTA lo vendido al stock que hay en el servidor, línea por línea,
+            -- y cada línea anota cuánto se descontó de verdad ("deducted"), igual que el reducer
+            new_items := '[]'::jsonb;
             for item in select value from jsonb_array_elements(p->'items') loop
               q := (item->>'qty')::numeric;
-              update products set stock = case
-                  when allow_neg then round_qty(stock - q, unit)
-                  else greatest(0, round_qty(stock - q, unit))
-                end
-              where owner_id = uid and id = item->>'productId';
+              select stock, unit into prev_stock, prev_unit
+              from products where owner_id = uid and id = item->>'productId' for update;
+              if found then
+                next_stock := case
+                  when allow_neg then round_qty(prev_stock - q, prev_unit)
+                  else greatest(0, round_qty(prev_stock - q, prev_unit))
+                end;
+                update products set stock = next_stock where owner_id = uid and id = item->>'productId';
+                new_items := new_items || jsonb_build_array(item || jsonb_build_object('deducted', round_qty(prev_stock - next_stock, prev_unit)));
+              else
+                new_items := new_items || jsonb_build_array(item || jsonb_build_object('deducted', 0));
+              end if;
             end loop;
+            update sales set items = new_items where owner_id = uid and id = p->>'id';
           end if;
 
         when 'voidSale' then
@@ -295,8 +309,9 @@ begin
           where owner_id = uid and id = op->>'id' and not voided and not deleted
           returning items into p;
           if found then
+            -- Se devuelve lo que se descontó; las ventas antiguas no lo traen y se usa lo vendido
             for item in select value from jsonb_array_elements(p) loop
-              update products set stock = round_qty(stock + (item->>'qty')::numeric, unit)
+              update products set stock = round_qty(stock + coalesce((item->>'deducted')::numeric, (item->>'qty')::numeric), unit)
               where owner_id = uid and id = item->>'productId';
             end loop;
           end if;

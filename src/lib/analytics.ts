@@ -1,6 +1,6 @@
 // Cálculos del dashboard y de caja. Todo es puro (sin React) para poder testearlo.
 import { ALL_PAYMENT_METHODS, type Expense, type PaymentMethod, type Product, type Sale, type Unit } from '../types'
-import { addDays, dayKey, formatDayShort, lineTotal, parseDayKey, startOfDay } from './utils'
+import { addDays, dayKey, formatCLP, formatDateLong, formatDayShort, formatQty, lineTotal, parseDayKey, startOfDay } from './utils'
 
 export const activeSales = (sales: Sale[]) => sales.filter((s) => !s.voided)
 
@@ -57,6 +57,31 @@ export function summarizeDay(sales: Sale[], expenses: Expense[], key: string): D
     byPayment,
     expectedCash: byPayment['Efectivo'] - cashExp,
   }
+}
+
+/**
+ * Resumen del día para mandarlo por WhatsApp (al dueño, a un hijo o al socio).
+ * Texto simple, con lo mismo que muestra Caja y lo que más se vendió.
+ */
+export function daySummaryText(sales: Sale[], expenses: Expense[], key: string, businessName = ''): string {
+  const s = summarizeDay(sales, expenses, key)
+  const from = parseDayKey(key)
+  const top = rankProducts(sales, from, new Date(addDays(from, 1).getTime() - 1))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 3)
+  const pays = ALL_PAYMENT_METHODS.filter((m) => s.byPayment[m] > 0).map((m) => `${m} ${formatCLP(s.byPayment[m])}`)
+  const lines = [
+    `🛒 ${businessName.trim() || 'Mi negocio'} — ${formatDateLong(from)}`,
+    '',
+    `Vendiste: ${formatCLP(s.revenue)} (${s.transactions} ${s.transactions === 1 ? 'venta' : 'ventas'})`,
+  ]
+  if (pays.length) lines.push(`  ${pays.join(' · ')}`)
+  lines.push(`Gastaste: ${formatCLP(s.expenses)}`, `Te queda: ${formatCLP(s.cashNet)}`, `En el cajón debería haber: ${formatCLP(s.expectedCash)}`)
+  if (top.length) {
+    lines.push('', 'Lo que más se vendió:')
+    for (const t of top) lines.push(`  • ${t.name}: ${formatQty(t.qty, t.unit)}${t.unit === 'kg' ? '' : ' un.'} (${formatCLP(t.revenue)})`)
+  }
+  return lines.join('\n')
 }
 
 /**

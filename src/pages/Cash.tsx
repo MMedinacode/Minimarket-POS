@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Ban, Calculator, ChevronDown, ChevronLeft, ChevronRight, HandCoins, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, ChevronDown, ChevronLeft, ChevronRight, HandCoins, MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { CashCountModal } from '../components/CashCountModal'
 import { ExpenseModal } from '../components/ExpenseModal'
 import { ConfirmDialog } from '../components/ui/Modal'
 import { Badge, Button, Card, CardHeader, EmptyState } from '../components/ui/primitives'
 import { useToast } from '../components/ui/Toast'
-import { summarizeDay } from '../lib/analytics'
+import { daySummaryText, summarizeDay } from '../lib/analytics'
 import { addDays, cn, dayKey, formatCLP, formatDateLong, formatQty, formatTime, lineTotal, parseDayKey } from '../lib/utils'
 import { useActions, useData } from '../store/AppStore'
 import { ALL_PAYMENT_METHODS, type Sale } from '../types'
@@ -13,7 +13,7 @@ import { useToday } from '../hooks/useToday'
 
 /** Caja del día: cuánto se vendió, cuánto se gastó y cuánto debería haber en el cajón */
 export default function Cash() {
-  const { sales, expenses } = useData()
+  const { sales, expenses, settings } = useData()
   const actions = useActions()
   const toast = useToast()
   const todayKey = useToday()
@@ -107,6 +107,19 @@ export default function Cash() {
       <Button variant="primary" size="lg" className="w-full" onClick={() => setExpenseOpen(true)}>
         <Plus /> Anotar un gasto
       </Button>
+
+      {(summary.transactions > 0 || dayExpenses.length > 0) && (
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          onClick={() =>
+            window.open(`https://wa.me/?text=${encodeURIComponent(daySummaryText(sales, expenses, day, settings.businessName))}`, '_blank', 'noopener')
+          }
+        >
+          <MessageCircle /> Resumen por WhatsApp
+        </Button>
+      )}
 
       {/* Gastos */}
       <Card>

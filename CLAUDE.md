@@ -21,8 +21,8 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 74 tests (incluye SQL real en PGlite, sin Docker)
-npm run test:e2e  # 25 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
+npm test          # 81 tests (incluye SQL real en PGlite, sin Docker)
+npm run test:e2e  # 28 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
 npm run test:e2e:build   # las mismas contra la versión compilada (con CSP), en .e2e-dist/
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
@@ -68,6 +68,12 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/storage.ts` — IndexedDB con reintento (reabre la conexión) y copia COMPLETA en localStorage con
   `savedAt` si IndexedDB falla; al cargar se usa la copia más nueva. `saveData` LANZA si no puede guardar en
   ningún lado y `AppStore` muestra un aviso rojo fijo (nunca perder ventas en silencio).
+- `src/lib/salesChunks.ts` — en IndexedDB las ventas van **por mes** (`sales@meses` + `sales@AAAA-MM`; en modo cuenta
+  `cloud:<uid>:base-sales@…`) y solo se reescribe el mes que cambió (compara por referencia: el reducer nunca modifica
+  una venta, crea un objeto nuevo). Antes, con un año (~55.000 ventas, 31 MB) cada venta congelaba ~0,2-1 s. Las cajas
+  con el formato antiguo (clave `sales`) se pasan solas al nuevo en el próximo guardado (`e2e/guardado.spec.ts`).
+  Si la lista dice que hay un mes y no está, NO se abre la caja sin esas ventas (local: error; cuenta: se descarga todo).
+- `daySummaryText` (`analytics.ts`) + botón "Resumen por WhatsApp" en Caja (abre `wa.me` con el texto, sin número).
 - `src/lib/backup.ts` + `components/BackupReminder.tsx` — sin cuenta, Inicio recuerda cada 7 días descargar
   el Excel (se marca también al exportar desde Excel y respaldo). Con cuenta no aparece.
 
@@ -106,6 +112,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/logic.test.ts` también cubre los 3 colores (bordes, kilos, rotación, velocidad, prioridad producto/tipo/automático).
 - `src/lib/prices.test.ts` — subir precios con redondeo y la cuenta de "Contar el cajón".
 - `src/lib/backup.test.ts` — cuándo aparece y se pospone el aviso de respaldo.
+- `src/lib/salesChunks.test.ts` — qué meses se escriben, borran y leen.
 - `src/lib/sync/sync.test.ts` también cubre: páginas con horas empatadas, anular una venta ya borrada, numeración
   tras borrar todo y reintentos de operaciones fallidas.
 - `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)

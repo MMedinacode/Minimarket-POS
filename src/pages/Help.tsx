@@ -179,6 +179,9 @@ const TOPICS: Topic[] = [
         <li>
           La caja te dice si <B>está justo</B>, si <B>sobra</B> o si <B>falta</B> plata.
         </li>
+        <li>
+          Si quieres que un hijo o tu socio sepa cómo te fue, toca <B>Resumen por WhatsApp</B> y elige a quién mandárselo.
+        </li>
         <li>No hay que “cerrar” la caja: cada día empieza de cero solo, a medianoche.</li>
       </Steps>
     ),

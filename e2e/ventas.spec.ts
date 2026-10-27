@@ -59,6 +59,32 @@ test.describe('Vender (productos por unidad)', () => {
     await expect(venta).toContainText('$3.000')
   })
 
+  test('mandar el resumen del día por WhatsApp', async ({ page }) => {
+    await crearCaja(page)
+    await agregarProducto(page, { nombre: 'Galletas Tritón', precio: 1500, cuantos: '10' })
+    await irA(page, 'Caja')
+    // Sin ventas ni gastos no hay nada que mandar
+    await expect(page.getByRole('button', { name: /Resumen por WhatsApp/ })).toBeHidden()
+
+    await irA(page, 'Vender')
+    await buscarYAgregar(page, 'Galletas Tritón')
+    await cobrar(page, 1)
+    await irA(page, 'Caja')
+    // No se abre WhatsApp de verdad: se anota el link que se iba a abrir
+    await page.evaluate(() => {
+      window.open = ((url: string) => {
+        ;(window as unknown as { abierto: string }).abierto = url
+        return null
+      }) as typeof window.open
+    })
+    await page.getByRole('button', { name: /Resumen por WhatsApp/ }).click()
+    const url = await page.evaluate(() => (window as unknown as { abierto: string }).abierto)
+    expect(url.startsWith('https://wa.me/?text=')).toBe(true)
+    const texto = decodeURIComponent(url.split('text=')[1])
+    expect(texto).toContain('Vendiste: $1.500 (1 venta)')
+    expect(texto).toContain('Galletas Tritón')
+  })
+
   test('no deja vender más de lo que hay', async ({ page }) => {
     await crearCaja(page)
     await agregarProducto(page, { nombre: 'Yogurt Frutilla', precio: 500, cuantos: '1' })

@@ -1,12 +1,17 @@
 // Persistencia local. Se usa IndexedDB (aguanta años de ventas); si el
 // navegador no lo permite (ej: modo privado antiguo) se cae a localStorage.
-import type { AppData } from '../types'
+import type { AppData, Sale } from '../types'
+import { joinMonths, SalesChunks } from './salesChunks'
 
 const DB_NAME = 'minimarket-pos'
 const STORE = 'kv'
 const LS_PREFIX = 'mm-pos:data:'
 const KEYS = ['products', 'sales', 'expenses', 'settings', 'isDemo'] as const
 type Key = (typeof KEYS)[number]
+/** En IndexedDB las ventas van separadas por mes (ver salesChunks.ts); en localStorage van juntas */
+const salesChunks = new SalesChunks('sales')
+// true = IndexedDB todavía tiene las ventas en una sola clave (versión anterior): el próximo guardado las separa
+let legacySales = false
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -67,12 +72,14 @@ async function idbGet(keys: readonly string[]): Promise<Record<string, unknown>>
   })
 }
 
-async function idbPut(entries: [string, unknown][]): Promise<void> {
+async function idbPut(entries: [string, unknown][], remove: string[] = []): Promise<void> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
+    // Todo en una sola transacción: o se guarda todo, o nada
     const tx = db.transaction(STORE, 'readwrite')
     const store = tx.objectStore(STORE)
     for (const [k, v] of entries) store.put(v, k)
+    for (const k of remove) store.delete(k)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
     tx.onabort = () => reject(tx.error ?? new Error('Guardado cancelado'))
@@ -121,11 +128,29 @@ export async function loadData(): Promise<AppData | null> {
   let raw: Partial<Record<Key, unknown>> = {}
   let idbSavedAt = 0
   let idbOk = true
+  let idbMonths: Map<string, Sale[]> | null = null
+  legacySales = false
   try {
-    const got = await withRetry(() => idbGet([...KEYS, SAVED_AT]))
+    const got = await withRetry(() => idbGet([...KEYS, SAVED_AT, salesChunks.indexKey]))
     idbSavedAt = Number(got[SAVED_AT] ?? 0)
     raw = got as Partial<Record<Key, unknown>>
+    const months = got[salesChunks.indexKey]
+    if (Array.isArray(months)) {
+      const keys = salesChunks.keysFor(months as string[])
+      const chunks = keys.length ? await withRetry(() => idbGet(keys)) : {}
+      const joined = joinMonths(months as string[], (m) => chunks[salesChunks.monthKey(m)] as Sale[] | undefined)
+      // Falta un mes que la lista dice que existe: mejor avisar que abrir la caja sin esas ventas
+      if (joined.missing.length) throw new Error('Faltan ventas guardadas')
+      raw.sales = joined.sales
+      idbMonths = joined.groups
+    } else if (got.sales !== undefined) {
+      legacySales = true
+    }
   } catch {
+    // Nada a medias: sin las ventas, la caja no debe abrir con solo los productos
+    raw = {}
+    idbMonths = null
+    legacySales = false
     idbOk = false
   }
   // La copia de localStorage manda si IndexedDB no funciona o si es más nueva
@@ -156,6 +181,9 @@ export async function loadData(): Promise<AppData | null> {
     isDemo: Boolean(raw.isDemo),
   }
   for (const k of KEYS) lastSaved.set(k, data[k])
+  // Lo que se leyó de IndexedDB por meses ya está guardado; si vino de otro lado, se escriben todos los meses
+  if (idbMonths && !fromLs) salesChunks.remember(idbMonths)
+  else salesChunks.forget()
   return data
 }
 
@@ -175,15 +203,27 @@ export function freezeStorage(on = true) {
  */
 export async function saveData(data: AppData): Promise<boolean> {
   if (frozen) return false
-  const changed = KEYS.filter((k) => lastSaved.get(k) !== data[k])
-  // Sin cambios no se escribe nada, salvo que haya que pasar la copia de localStorage a IndexedDB
-  if (!changed.length && !useFallback) return false
-  const savedAt = Date.now()
+  const others = KEYS.filter((k) => k !== 'sales')
+  const changed = others.filter((k) => lastSaved.get(k) !== data[k])
   // Saliendo de una falla se escribe todo, para que IndexedDB quede completo y al día
-  const keys = useFallback ? KEYS : changed
+  if (useFallback || legacySales) salesChunks.forget()
+  // Las ventas se comparan mes por mes: normalmente solo cambió el mes actual
+  const sales = salesChunks.plan(data.sales)
+  const salesChanged = sales.put.length > 0 || sales.remove.length > 0
+  // Sin cambios no se escribe nada, salvo que haya que pasar la copia de localStorage a IndexedDB
+  if (!changed.length && !salesChanged && !useFallback) return false
+  const savedAt = Date.now()
+  const keys = useFallback ? others : changed
+  // La clave antigua con todas las ventas juntas se borra en el mismo guardado que las separa por mes
+  const remove = legacySales ? [...sales.remove, 'sales'] : sales.remove
   try {
-    await withRetry(() => idbPut([...keys.map((k) => [k, data[k]] as [string, unknown]), [SAVED_AT, savedAt]]))
+    await withRetry(() =>
+      idbPut([...keys.map((k) => [k, data[k]] as [string, unknown]), ...sales.put, [SAVED_AT, savedAt]], remove),
+    )
     keys.forEach((k) => lastSaved.set(k, data[k]))
+    lastSaved.set('sales', data.sales)
+    sales.commit()
+    legacySales = false
     if (useFallback) {
       useFallback = false
       clearLsCopy()
@@ -202,7 +242,16 @@ export async function saveData(data: AppData): Promise<boolean> {
 /** Borra los datos de la caja de este equipo. Lanza un error si no se pudo borrar. */
 export async function clearData(): Promise<void> {
   lastSaved.clear()
-  await kvDelete([...KEYS, SAVED_AT])
+  // Los meses guardados se leen de la lista (no basta con lo que recuerda esta pestaña)
+  let months: string[] = []
+  try {
+    const got = await withRetry(() => idbGet([salesChunks.indexKey]))
+    if (Array.isArray(got[salesChunks.indexKey])) months = got[salesChunks.indexKey] as string[]
+  } catch {
+    /* IndexedDB no responde: kvDelete avisará si no puede borrar */
+  }
+  salesChunks.forget()
+  await kvDelete([...KEYS, SAVED_AT, salesChunks.indexKey, ...salesChunks.keysFor(months)])
 }
 
 // ---------- Clave-valor genérico (copia local de la cuenta en la nube) ----------

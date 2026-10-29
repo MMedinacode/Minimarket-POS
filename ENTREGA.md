@@ -4,15 +4,18 @@ Pasos cortos, en orden. El detalle técnico está en el [README](README.md).
 
 ## A. Una sola vez, antes del primer cliente
 
-- [ ] **Netlify** (link gratis `caja-minimarket.netlify.app`): en la terminal, `npx -y netlify-cli login`,
-      entrar con GitHub y tocar *Authorize*. Después Claude crea el sitio y lo publica.
+- [ ] *(Opcional)* **Netlify** (link gratis `caja-minimarket.netlify.app`): en la terminal, `npx -y netlify-cli login`,
+      entrar con GitHub y tocar *Authorize*. Después Claude crea el sitio y lo publica. Mientras tanto el link
+      oficial es el de GitHub Pages (el soporte y Supabase ya apuntan a ese). No cambiar de link con clientes ya
+      instalados: sus datos del navegador no se pasan solos de un link al otro.
 - [x] **Supabase** (cuentas y respaldo en línea): proyecto `caja-minimarket`, ya conectado.
-- [ ] **Supabase → Authentication → URL Configuration:** *Site URL* = el link oficial, y en *Redirect URLs*
-      las direcciones **exactas** (GitHub Pages, Netlify y `http://localhost:5173/`), **sin asteriscos**.
-- [ ] **Supabase → Authentication → (Sign In / Providers → Email):** contraseña mínima de **8**
-      caracteres y, si aparece, activar *Leaked password protection*.
-- [ ] **Correo propio en Supabase** (SMTP con Gmail y una contraseña de aplicación). Sin esto, a los
-      clientes no les llega el correo para recuperar la contraseña de su cuenta.
+- [x] **Supabase → Authentication → URL Configuration** (hecho el 2026-10-26): *Site URL* = GitHub Pages;
+      *Redirect URLs* exactas: GitHub Pages y `http://localhost:5173/`. Si se publica en Netlify, agregar ese link.
+- [x] **Contraseña mínima de 8** (hecho el 2026-10-26). *Leaked password protection* es solo del plan Pro: no se usa.
+- [ ] **Correo propio en Supabase** (SMTP con Gmail y una contraseña de aplicación). **Obligatorio antes del
+      primer cliente:** el correo gratis de Supabase solo llega a los correos del equipo del proyecto (el tuyo), así
+      que al cliente NO le llegaría el correo para confirmar su cuenta (y sin confirmar no puede entrar) ni el de
+      recuperar la contraseña.
 - [ ] **Respaldo de tus llaves:** copia a un pendrive `C:\Users\Mati\.caja-minimarket\` y el archivo `.env`
       del proyecto. Sin la llave no puedes ayudar a recuperar claves.
 - [ ] **Prueba con equipos de verdad:** un lector de códigos USB, un celular Android y, si puedes, un iPhone.

@@ -36,6 +36,8 @@ export interface Product {
   minStock: number | null
   /** Amarillo ("queda poco"): avisar cuando queden menos de esto. null = automático */
   warnStock: number | null
+  /** Quién trae este producto (CCU, panadería…). Vacío o sin definir = sin proveedor */
+  supplier?: string
   createdAt: string
   updatedAt: string
 }
@@ -101,6 +103,8 @@ export interface Settings {
    * (ej: "Fiambrería|kg": { red: 1, yellow: 2 }). Los que no están, son automáticos.
    */
   stockLevels: Record<string, { red: number; yellow: number }>
+  /** WhatsApp de cada proveedor (clave: supplierKey del nombre; valor: solo dígitos, ej. 56912345678) */
+  supplierPhones: Record<string, string>
   /** Días de venta que el stock debe cubrir antes de alertar (usa la velocidad real) */
   coverageDays: number
   /** Días sin ventas para considerar un producto de "menor rotación" */

@@ -8,6 +8,7 @@ import { lineTotal } from '../lib/utils.ts'
 export const DEFAULT_SETTINGS: Settings = {
   businessName: (import.meta.env?.VITE_BUSINESS_NAME as string | undefined)?.trim() || 'Minimarket Don Pepe',
   stockLevels: {},
+  supplierPhones: {},
   coverageDays: 2,
   slowMoverDays: 7,
   allowNegativeStock: false,
@@ -19,7 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
  */
 export function normalizeSettings(s: Partial<Settings> | undefined | null): Settings {
   const saved = s ?? {}
-  return { ...DEFAULT_SETTINGS, ...saved, stockLevels: { ...(saved.stockLevels ?? {}) } }
+  return { ...DEFAULT_SETTINGS, ...saved, stockLevels: { ...(saved.stockLevels ?? {}) }, supplierPhones: { ...(saved.supplierPhones ?? {}) } }
 }
 
 /** Dígito verificador EAN-13 */
@@ -137,6 +138,16 @@ function pickWeighted<T>(items: T[], weights: number[], r: number): T {
   return items[items.length - 1]
 }
 
+/** Proveedores de ejemplo, para que la demo muestre el pedido separado por proveedor */
+function demoSupplier(name: string, category: string): string {
+  if (/coca-cola|fanta|sprite|andina/i.test(name)) return 'Coca-Cola Andina'
+  if (/bilz|cachantun|cristal|escudo|watts/i.test(name)) return 'CCU'
+  if (category === 'Panadería') return 'Panadería Don Luis'
+  if (category === 'Lácteos') return 'Lácteos del Sur'
+  if (category === 'Snacks' || category === 'Abarrotes') return 'Distribuidora Central'
+  return ''
+}
+
 const makeId = (prefix: string, n: number) => `${prefix}-${n.toString(36).padStart(5, '0')}`
 
 export function buildDemoProducts(now: Date = new Date()): Product[] {
@@ -155,6 +166,7 @@ export function buildDemoProducts(now: Date = new Date()): Product[] {
     rotation,
     minStock: null,
     warnStock: null,
+    supplier: demoSupplier(name, category),
     createdAt: iso,
     updatedAt: iso,
   }))

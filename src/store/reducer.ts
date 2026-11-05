@@ -47,6 +47,12 @@ function upsertById<T extends { id: string }>(list: T[], items: T[]): T[] {
   return out
 }
 
+/** Igual que upsert_product: quien no manda el proveedor (una caja con la versión anterior) no lo borra */
+function keepSupplier(list: Product[], items: Product[]): Product[] {
+  const prev = new Map(list.map((p) => [p.id, p.supplier]))
+  return items.map((p) => (p.supplier === undefined && prev.get(p.id) ? { ...p, supplier: prev.get(p.id) } : p))
+}
+
 export function reducer(state: AppData, action: Action): AppData {
   switch (action.type) {
     case 'hydrate':
@@ -54,7 +60,7 @@ export function reducer(state: AppData, action: Action): AppData {
       return { ...action.data, settings: normalizeSettings(action.data.settings) }
 
     case 'addProduct':
-      return { ...state, products: upsertById(state.products, [action.product]) }
+      return { ...state, products: upsertById(state.products, keepSupplier(state.products, [action.product])) }
 
     case 'updateProduct':
       return {
@@ -80,7 +86,7 @@ export function reducer(state: AppData, action: Action): AppData {
       return { ...state, products: action.products }
 
     case 'upsertProducts':
-      return { ...state, products: upsertById(state.products, action.products) }
+      return { ...state, products: upsertById(state.products, keepSupplier(state.products, action.products)) }
 
     case 'registerSale': {
       // Idempotente: si la venta ya está (reintento), no se descuenta de nuevo

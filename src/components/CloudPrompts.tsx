@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { CloudUpload, KeyRound } from 'lucide-react'
+import { Cloud, CloudUpload, KeyRound } from 'lucide-react'
+import { useHashRoute } from '../hooks/useHashRoute'
 import { readPref, writePref } from '../lib/storage'
 import { useCloud } from '../store/AppStore'
+import { AccountPanel } from './AccountPanel'
 import { Modal } from './ui/Modal'
 import { Button, Field, Input } from './ui/primitives'
 import { useToast } from './ui/Toast'
@@ -10,6 +12,7 @@ import { useToast } from './ui/Toast'
  * Avisos de la cuenta que pueden aparecer en cualquier pantalla:
  * - Subir los datos que había en este dispositivo a una cuenta vacía.
  * - Crear una contraseña nueva (al llegar desde el correo de recuperación).
+ * - Volver a entrar a la cuenta después de cerrar sesión (sin ella la caja se ve vacía).
  * Subir datos solo se ofrece con la caja abierta (con la clave puesta): si no, cualquiera
  * frente a la pantalla bloqueada podría mandar los datos del negocio a una cuenta.
  */
@@ -17,8 +20,40 @@ export function CloudPrompts({ unlocked }: { unlocked: boolean }) {
   return (
     <>
       {unlocked && <UploadLocalPrompt />}
+      {unlocked && <SignedOutPrompt />}
       <RecoveryPrompt />
     </>
+  )
+}
+
+/** Después de "Cerrar sesión" los datos están en la cuenta: sin esto parecería que se borró todo */
+function SignedOutPrompt() {
+  const { enabled, user } = useCloud()
+  const toast = useToast()
+  const { route } = useHashRoute()
+  const [later, setLater] = useState(false)
+  // La pantalla Cuenta ya trae su propio formulario para entrar o crear otra cuenta
+  if (!enabled || user || later || route === 'cuenta' || !readPref<boolean>('cuentaCerrada', false)) return null
+
+  return (
+    <Modal
+      open
+      onClose={() => setLater(true)}
+      size="sm"
+      title={
+        <span className="flex items-center gap-2">
+          <Cloud className="size-5 text-brand-ink" /> Entra a tu cuenta
+        </span>
+      }
+      description="Tus productos y ventas están guardados en tu cuenta. Entra con tu correo y contraseña para verlos. Lo que vendas sin entrar no quedará en tu cuenta."
+      footer={
+        <Button variant="outline" onClick={() => setLater(true)}>
+          Ahora no
+        </Button>
+      }
+    >
+      <AccountPanel loginOnly onSignedIn={() => toast.success('¡Listo! Tus datos se están cargando')} />
+    </Modal>
   )
 }
 

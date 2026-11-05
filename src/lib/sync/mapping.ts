@@ -20,6 +20,7 @@ export function productFromRow(r: Row): Product {
     rotation: (r.rotation as Rotation) ?? 'Media',
     minStock: numOrNull(r.min_stock),
     warnStock: numOrNull(r.warn_stock),
+    supplier: str(r.supplier),
     createdAt: str(r.created_at),
     updatedAt: str(r.updated_at),
   }

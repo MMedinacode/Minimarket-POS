@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  ExternalLink,
   FileDown,
   FileSpreadsheet,
   FileUp,
@@ -44,6 +45,7 @@ const COLUMN_HELP: { col: string; desc: string; example: string; required?: bool
   { col: 'Unidad', desc: 'Opcional: "un" (por unidad) o "kg" (a granel).', example: 'un' },
   { col: 'StockMinimo', desc: 'Opcional: se pone ROJO (muy poco) cuando quedan menos de esto. Vacío = automático.', example: '10' },
   { col: 'StockAviso', desc: 'Opcional: se pone AMARILLO (queda poco) cuando quedan menos de esto. Vacío = automático.', example: '20' },
+  { col: 'Proveedor', desc: 'Opcional: quién te lo trae. Sirve para armar el pedido de cada proveedor.', example: 'CCU' },
 ]
 
 export default function ExcelPage() {
@@ -165,6 +167,7 @@ export default function ExcelPage() {
                 ['Ventas', `${formatInt(data.sales.length)} ventas, detalle por producto`],
                 ['Gastos', `${formatInt(data.expenses.length)} gastos registrados`],
                 ['Resumen diario', 'Ventas, costo, gastos y ganancia por día'],
+                ['Por categoría y por proveedor', 'Cuánto dejó cada uno, listo para hacer gráficos'],
               ].map(([t, d]) => (
                 <li key={t} className="flex items-start gap-2.5">
                   <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-ok-ink" />
@@ -185,6 +188,32 @@ export default function ExcelPage() {
           </div>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader icon={<Table2 />} title="Ver tus datos en Google Sheets" subtitle="Para hacer tus propios gráficos o compartir los números con otra persona" />
+        <div className="space-y-4 p-4 sm:p-5">
+          <ol className="list-decimal space-y-2 pl-5 marker:font-bold marker:text-brand-ink">
+            <li>
+              Toca <strong>Descargar Excel actualizado</strong> (el botón de arriba).
+            </li>
+            <li>
+              Toca <strong>Abrir Google Sheets</strong>. Se abre una hoja nueva con tu cuenta de Google.
+            </li>
+            <li>
+              Ahí toca <strong>Archivo → Importar → Subir</strong> y elige el Excel que descargaste.
+            </li>
+          </ol>
+          <p className="text-sm text-muted">La hoja de Google es una copia de ese momento: no se actualiza sola. Para ver lo último, repite estos pasos.</p>
+          <a
+            href="https://sheets.new"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-strong px-4 py-2 font-semibold hover:bg-surface-2"
+          >
+            <ExternalLink className="size-5" /> Abrir Google Sheets
+          </a>
+        </div>
+      </Card>
 
       <SheetViewer />
 

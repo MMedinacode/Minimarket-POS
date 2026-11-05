@@ -74,6 +74,7 @@ interface DatosProducto {
   /** Cuántos tiene, como lo escribiría el dueño: "10" o "5,5" */
   cuantos: string
   porKilo?: boolean
+  proveedor?: string
 }
 
 /** Productos → Agregar producto → llena el formulario → Guardar */
@@ -87,6 +88,7 @@ export async function agregarProducto(page: Page, p: DatosProducto) {
   await form.getByLabel('¿Cómo se llama?').fill(p.nombre)
   await form.getByLabel(p.porKilo ? '¿A cuánto vendes el kilo?' : '¿A cuánto lo vendes?').fill(String(p.precio))
   await form.getByLabel(p.porKilo ? '¿Cuántos kilos tienes?' : '¿Cuántos tienes?').fill(p.cuantos)
+  if (p.proveedor) await form.getByLabel(/¿Quién te lo trae/).fill(p.proveedor)
   await form.getByRole('button', { name: 'Guardar' }).click()
 
   await expect(form).toBeHidden()

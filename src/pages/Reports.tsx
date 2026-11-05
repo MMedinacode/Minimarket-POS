@@ -1,21 +1,25 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, LabelList, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   BadgeDollarSign,
+  CalendarDays,
+  ChevronDown,
   Clock,
+  LineChart,
   Moon,
   PackageX,
   Percent,
   Receipt,
+  Shapes,
   Sparkles,
   Star,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
-import { axisProps, CHART, ChartTooltip, Legend } from '../components/charts'
+import { axisProps, CHART, ChartTooltip, Legend, RankBars } from '../components/charts'
 import { Badge, Button, Card, CardHeader, EmptyState, Segmented } from '../components/ui/primitives'
 import { navigate } from '../hooks/useHashRoute'
 import {
@@ -24,13 +28,24 @@ import {
   inventoryValue,
   marginRows,
   pctChange,
+  periodTotals,
+  salesByCategory,
   salesByHour,
+  salesByPayment,
+  salesBySupplier,
+  salesByWeekday,
   slowMovers,
   summarizeDay,
   topProducts,
 } from '../lib/analytics'
-import { addDays, cn, dayKey, formatCLP, formatCLPShort, formatInt, formatPct, formatQty, startOfDay } from '../lib/utils'
+import { addDays, cn, dayKey, formatCLP, formatCLPShort, formatDate, formatInt, formatPct, formatQty, startOfDay } from '../lib/utils'
 import { useData } from '../store/AppStore'
+
+type Period = '7' | '30' | '90'
+interface Range {
+  from: Date
+  to: Date
+}
 
 export default function Reports() {
   const { sales, expenses, settings } = useData()
@@ -47,11 +62,22 @@ export default function Reports() {
   }, [sales, now])
   const change = pctChange(summary.revenue, yesterdaySameTime)
 
+  // Período elegido, comparado con los mismos días justo antes (hasta esta misma hora)
+  const [period, setPeriod] = useState<Period>('7')
+  const days = DAYS[period]
+  const range = useMemo<Range>(() => ({ from: addDays(startOfDay(now), -(days - 1)), to: now }), [now, days])
+  const totals = useMemo(() => periodTotals(sales, expenses, range.from, range.to), [sales, expenses, range])
+  const before = useMemo(
+    () => periodTotals(sales, expenses, addDays(range.from, -days), addDays(range.to, -days)),
+    [sales, expenses, range, days],
+  )
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <p className="text-muted">Números y gráficos para ver cómo va el negocio. Para el día a día no necesitas esta pantalla.</p>
 
       {/* Tarjetas resumen */}
+      <h2 className="text-xl font-bold">Hoy</h2>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
           icon={<BadgeDollarSign />}
@@ -61,9 +87,9 @@ export default function Reports() {
             change === null ? (
               <span>Ayer a esta hora no había ventas</span>
             ) : (
-              <span className={cn('inline-flex items-center gap-0.5 font-semibold', change >= 0 ? 'text-ok-ink' : 'text-danger-ink')}>
+              <span className={cn('inline-flex flex-wrap items-center gap-x-1 font-semibold', change >= 0 ? 'text-ok-ink' : 'text-danger-ink')}>
                 {change >= 0 ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
-                {formatPct(Math.abs(change))} <span className="font-normal text-subtle">que ayer a esta hora</span>
+                {formatPct(Math.abs(change))} {change >= 0 ? 'más' : 'menos'} <span className="font-normal text-subtle">que ayer a esta hora</span>
               </span>
             )
           }
@@ -83,13 +109,29 @@ export default function Reports() {
         <KpiCard icon={<Wallet />} label="Gastos de hoy" value={formatCLP(summary.expenses)} foot={<span>Anotados en Caja</span>} />
       </div>
 
-      <div className="grid gap-4 sm:gap-5 xl:grid-cols-5">
-        <HourlyCard className="xl:col-span-3" />
-        <TopProductsCard className="xl:col-span-2" />
+      {/* Lo que cambia con el período elegido */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <h2 className="text-xl font-bold">Cómo te ha ido</h2>
+        <Segmented value={period} onChange={setPeriod} ariaLabel="Período" options={PERIOD_OPTIONS} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <KpiCard icon={<BadgeDollarSign />} label="Vendiste" value={formatCLP(totals.ventas)} foot={<Change now={totals.ventas} before={before.ventas} days={days} />} />
+        <KpiCard icon={<TrendingUp />} label="Ganaste en ventas" value={formatCLP(totals.ganancia)} foot={<Change now={totals.ganancia} before={before.ganancia} days={days} />} />
+        <KpiCard icon={<CalendarDays />} label="Promedio por día" value={formatCLP(totals.diasConVentas ? totals.ventas / totals.diasConVentas : 0)} foot={<span>{formatInt(totals.transacciones)} ventas en {totals.diasConVentas} {totals.diasConVentas === 1 ? 'día' : 'días'}</span>} />
+        <KpiCard icon={<Receipt />} label="Gastos anotados" value={formatCLP(totals.gastos)} foot={<span>En estos {days} días</span>} />
+      </div>
+      <TrendCard days={days} range={range} />
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-2">
+        <ShareCard range={range} />
+        <TopProductsCard range={range} />
+        <WeekdayCard days={days} />
+        <PaymentCard range={range} />
       </div>
 
+      {/* Lo demás */}
+      <h2 className="pt-2 text-xl font-bold">Más detalles</h2>
       <div className="grid gap-4 sm:gap-5 xl:grid-cols-5">
-        <WeekCard className="xl:col-span-3" />
+        <HourlyCard className="xl:col-span-3" />
         <SlowMoversCard className="xl:col-span-2" days={settings.slowMoverDays} />
       </div>
 
@@ -121,6 +163,239 @@ function KpiCard({
       </div>
       <p className={cn('tabular mt-2 truncate text-2xl font-extrabold tracking-tight sm:text-3xl', valueClass)}>{value}</p>
       {foot && <div className="mt-1 text-xs text-subtle">{foot}</div>}
+    </Card>
+  )
+}
+
+// ---------- Tendencia del período ----------
+
+const DAYS: Record<Period, number> = { '7': 7, '30': 30, '90': 90 }
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: '7', label: '7 días' },
+  { value: '30', label: '30 días' },
+  { value: '90', label: '3 meses' },
+]
+
+/** Comparación con los días anteriores: flecha + palabra, nunca solo el color */
+function Change({ now, before, days }: { now: number; before: number; days: number }) {
+  const change = pctChange(now, before)
+  if (change === null) return <span>Sin ventas en los {days} días anteriores</span>
+  const up = change >= 0
+  return (
+    <span className={cn('inline-flex flex-wrap items-center gap-x-1 font-semibold', up ? 'text-ok-ink' : 'text-danger-ink')}>
+      {up ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
+      {formatPct(Math.abs(change))} {up ? 'más' : 'menos'} <span className="font-normal text-subtle">que los {days} días anteriores</span>
+    </span>
+  )
+}
+
+function TrendCard({ days, range }: { days: number; range: Range }) {
+  const { sales, expenses } = useData()
+  const data = useMemo(() => dailySeries(sales, expenses, days), [sales, expenses, days])
+  const best = data.reduce((b, d) => (d.ventas > b.ventas ? d : b), data[0])
+  const hasSales = data.some((d) => d.ventas > 0)
+
+  return (
+    <Card>
+      <CardHeader
+        icon={<LineChart />}
+        title="Cómo han ido las ventas"
+        subtitle={hasSales ? `Tu mejor día fue ${best.label}: ${formatCLP(best.ventas)}` : 'Aún no hay ventas en este período'}
+        actions={
+          <Legend
+            items={[
+              { label: 'Ventas', color: CHART.s1 },
+              { label: 'Ganancia', color: CHART.s3 },
+            ]}
+          />
+        }
+      />
+      <div className="h-64 px-2 pt-3 pb-2 sm:h-72 sm:px-4" role="img" aria-label={`Ventas y ganancia de cada día, desde ${formatDate(range.from)}`}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke={CHART.grid} />
+            <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={28} />
+            <YAxis {...axisProps} width={62} tickFormatter={formatCLPShort} />
+            <Tooltip cursor={{ stroke: CHART.axis, strokeDasharray: '3 3' }} content={<ChartTooltip valueFormatter={formatCLP} />} />
+            <Area type="monotone" dataKey="ventas" name="Ventas" stroke={CHART.s1} strokeWidth={2} fill={CHART.s1} fillOpacity={0.12} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--surface)' }} />
+            <Line type="monotone" dataKey="utilidad" name="Ganancia" stroke={CHART.s3} strokeWidth={2} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--surface)' }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <details className="group border-t border-line">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 py-2 font-semibold sm:px-5">
+          Ver los números día por día
+          <ChevronDown className="size-5 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="scrollbar-thin max-h-72 overflow-y-auto px-4 pb-4 sm:px-5">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs font-semibold text-subtle uppercase">
+              <tr>
+                <th className="py-2">Día</th>
+                <th className="py-2 text-right">Vendido</th>
+                <th className="py-2 text-right">Ganancia</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {[...data].reverse().map((d) => (
+                <tr key={d.key}>
+                  <td className="py-1.5">{d.label}</td>
+                  <td className="tabular py-1.5 text-right">{formatCLP(d.ventas)}</td>
+                  <td className="tabular py-1.5 text-right">{formatCLP(d.utilidad)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </Card>
+  )
+}
+
+// ---------- Qué se vende: categorías y proveedores ----------
+
+function ShareCard({ range }: { range: Range }) {
+  const { sales, products } = useData()
+  const hasSuppliers = useMemo(() => products.some((p) => p.supplier?.trim()), [products])
+  const [by, setBy] = useState<'cat' | 'prov'>('cat')
+  const group = hasSuppliers ? by : 'cat'
+  const rows = useMemo(
+    () => (group === 'cat' ? salesByCategory(sales, range.from, range.to) : salesBySupplier(sales, products, range.from, range.to)),
+    [sales, products, range, group],
+  )
+
+  return (
+    <Card>
+      <CardHeader icon={<Shapes />} title="Qué es lo que más vendes" subtitle={group === 'cat' ? 'Plata que dejó cada categoría' : 'Plata que dejó lo que trae cada proveedor'} />
+      {hasSuppliers && (
+        <div className="px-4 pt-3 sm:px-5">
+          <Segmented
+            size="sm"
+            value={by}
+            onChange={setBy}
+            ariaLabel="Agrupar por"
+            options={[
+              { value: 'cat', label: 'Por categoría' },
+              { value: 'prov', label: 'Por proveedor' },
+            ]}
+          />
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <EmptyState icon={<Shapes />} title="Sin ventas en este período" className="h-56" />
+      ) : (
+        <div className="p-4 sm:p-5">
+          <RankBars items={rows.map((r) => ({ name: r.name, value: r.total, note: formatPct(r.pct) }))} />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ---------- Top 5 productos ----------
+
+function TopProductsCard({ range }: { range: Range }) {
+  const { sales } = useData()
+  const [by, setBy] = useState<'revenue' | 'qty'>('revenue')
+  const data = useMemo(() => topProducts(sales, range.from, by, 5, range.to), [sales, range, by])
+
+  return (
+    <Card>
+      <CardHeader icon={<Star />} title="Los 5 que más se venden" subtitle={by === 'revenue' ? 'Según la plata que dejaron' : 'Según cuántos se vendieron'} />
+      <div className="px-4 pt-3 sm:px-5">
+        <Segmented
+          size="sm"
+          value={by}
+          onChange={setBy}
+          ariaLabel="Ordenar por"
+          options={[
+            { value: 'revenue', label: 'Por plata' },
+            { value: 'qty', label: 'Por cantidad' },
+          ]}
+        />
+      </div>
+      {data.length === 0 ? (
+        <EmptyState icon={<Star />} title="Sin ventas en este período" className="h-56" />
+      ) : (
+        <div className="p-4 sm:p-5">
+          <RankBars
+            items={data.map((r) => ({
+              id: r.productId,
+              name: r.name,
+              value: by === 'qty' ? r.qty : r.revenue,
+              label: by === 'qty' ? `${formatQty(r.qty, r.unit)}${r.unit === 'un' ? ' un' : ''}` : formatCLP(r.revenue),
+            }))}
+          />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ---------- Días de la semana ----------
+
+const DAY_NAME: Record<string, string> = { Lun: 'lunes', Mar: 'martes', Mié: 'miércoles', Jue: 'jueves', Vie: 'viernes', Sáb: 'sábado', Dom: 'domingo' }
+
+function WeekdayCard({ days }: { days: number }) {
+  const { sales } = useData()
+  const data = useMemo(() => salesByWeekday(sales, days), [sales, days])
+  const best = data.reduce((b, d) => (d.total > b.total ? d : b), data[0])
+  const empty = data.every((d) => d.total === 0)
+
+  return (
+    <Card>
+      <CardHeader
+        icon={<CalendarDays />}
+        title="Qué días vendes más"
+        subtitle={empty ? 'Aún no hay ventas en este período' : `En promedio, tu mejor día es el ${DAY_NAME[best.label]}: ${formatCLP(best.total)}`}
+      />
+      <div className="h-56 px-2 pt-3 pb-2 sm:px-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke={CHART.grid} />
+            <XAxis dataKey="label" {...axisProps} interval={0} />
+            <YAxis {...axisProps} width={62} tickFormatter={formatCLPShort} />
+            <Tooltip cursor={{ fill: CHART.cursor }} content={<ChartTooltip valueFormatter={formatCLP} labelFormatter={(l) => `Un ${DAY_NAME[String(l)]} normal`} />} />
+            <Bar dataKey="total" name="Promedio" fill={CHART.s1} radius={[4, 4, 0, 0]} maxBarSize={36} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  )
+}
+
+// ---------- Cómo te pagan ----------
+
+const PAY_COLOR: Record<string, string> = { Efectivo: CHART.s1, Tarjeta: CHART.s2, Transferencia: CHART.s3 }
+
+function PaymentCard({ range }: { range: Range }) {
+  const { sales } = useData()
+  const rows = useMemo(() => salesByPayment(sales, range.from, range.to), [sales, range])
+
+  return (
+    <Card>
+      <CardHeader icon={<Wallet />} title="Cómo te pagan" subtitle="Efectivo, tarjeta y transferencia" />
+      {rows.length === 0 ? (
+        <EmptyState icon={<Wallet />} title="Sin ventas en este período" className="h-56" />
+      ) : (
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="flex h-4 gap-0.5 overflow-hidden rounded-full" aria-hidden>
+            {rows.map((r) => (
+              <div key={r.name} style={{ width: `${r.pct}%`, background: PAY_COLOR[r.name] ?? CHART.axis }} />
+            ))}
+          </div>
+          <ul className="space-y-2.5">
+            {rows.map((r) => (
+              <li key={r.name} className="flex items-center gap-2.5">
+                <span className="size-3 shrink-0 rounded-sm" style={{ background: PAY_COLOR[r.name] ?? CHART.axis }} aria-hidden />
+                <span className="min-w-0 flex-1 truncate font-medium">{r.name}</span>
+                <span className="tabular font-semibold">{formatCLP(r.total)}</span>
+                <span className="tabular w-14 text-right text-sm text-subtle">{formatPct(r.pct)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Card>
   )
 }
@@ -174,122 +449,6 @@ function HourlyCard({ className }: { className?: string }) {
               }
             />
             <Bar dataKey="total" name={range === 'hoy' ? 'Ventas' : 'Promedio diario'} fill={CHART.s1} radius={[4, 4, 0, 0]} maxBarSize={32} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </Card>
-  )
-}
-
-// ---------- Top 5 productos ----------
-
-const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
-
-function TopProductsCard({ className }: { className?: string }) {
-  const { sales } = useData()
-  const [range, setRange] = useState<'hoy' | 'semana'>('semana')
-  const [by, setBy] = useState<'revenue' | 'qty'>('revenue')
-  const data = useMemo(() => {
-    const from = range === 'hoy' ? startOfDay() : addDays(startOfDay(), -6)
-    return topProducts(sales, from, by).map((r) => ({ ...r, short: truncate(r.name, 22), value: by === 'qty' ? r.qty : r.revenue }))
-  }, [sales, range, by])
-
-  return (
-    <Card className={className}>
-      <CardHeader
-        icon={<Star />}
-        title="Los 5 que más se venden"
-        subtitle={by === 'revenue' ? 'Según la plata que dejaron' : 'Según cuántos se vendieron'}
-        actions={
-          <Segmented
-            size="sm"
-            value={range}
-            onChange={setRange}
-            ariaLabel="Período"
-            options={[
-              { value: 'hoy', label: 'Hoy' },
-              { value: 'semana', label: '7 días' },
-            ]}
-          />
-        }
-      />
-      <div className="px-4 pt-2 sm:px-5">
-        <Segmented
-          size="sm"
-          value={by}
-          onChange={setBy}
-          ariaLabel="Ordenar por"
-          options={[
-            { value: 'revenue', label: '$ Ventas' },
-            { value: 'qty', label: 'Unidades' },
-          ]}
-        />
-      </div>
-      {data.length === 0 ? (
-        <EmptyState icon={<Star />} title="Sin ventas en este período" className="h-64" />
-      ) : (
-        <div className="h-64 px-2 pb-3 sm:h-[17rem] sm:px-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 8, right: 64, bottom: 0, left: 0 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="short" {...axisProps} width={150} tick={{ ...axisProps.tick, fill: 'var(--fg-muted)' }} />
-              <Tooltip
-                cursor={{ fill: CHART.cursor }}
-                content={
-                  <ChartTooltip
-                    valueFormatter={(v) => (by === 'qty' ? formatInt(Math.round(v * 10) / 10) : formatCLP(v))}
-                  />
-                }
-              />
-              <Bar dataKey="value" name={by === 'qty' ? 'Unidades' : 'Ventas'} fill={CHART.s1} radius={[0, 4, 4, 0]} maxBarSize={26}>
-                <LabelList
-                  dataKey="value"
-                  position="right"
-                  className="tabular"
-                  style={{ fill: 'var(--fg)', fontSize: 12, fontWeight: 600 }}
-                  formatter={(v: unknown) => (by === 'qty' ? formatInt(Number(v)) : formatCLPShort(Number(v)))}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </Card>
-  )
-}
-
-// ---------- Últimos 7 días ----------
-
-function WeekCard({ className }: { className?: string }) {
-  const { sales, expenses } = useData()
-  const data = useMemo(() => dailySeries(sales, expenses, 7), [sales, expenses])
-  const total = data.reduce((a, d) => a + d.ventas, 0)
-  const profit = data.reduce((a, d) => a + d.utilidad, 0)
-
-  return (
-    <Card className={className}>
-      <CardHeader
-        icon={<Wallet />}
-        title="Últimos 7 días"
-        subtitle={`Vendido ${formatCLP(total)} · ganado ${formatCLP(profit)}`}
-        actions={
-          <Legend
-            items={[
-              { label: 'Ventas', color: CHART.s1 },
-              { label: 'Ganancia', color: CHART.s3 },
-            ]}
-          />
-        }
-      />
-      <div className="h-64 px-2 pt-3 pb-2 sm:h-72 sm:px-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barGap={2}>
-            <CartesianGrid vertical={false} stroke={CHART.grid} />
-            <XAxis dataKey="label" {...axisProps} />
-            <YAxis {...axisProps} width={62} tickFormatter={formatCLPShort} />
-            <Tooltip cursor={{ fill: CHART.cursor }} content={<ChartTooltip valueFormatter={formatCLP} />} />
-            <Bar dataKey="ventas" name="Ventas" fill={CHART.s1} radius={[4, 4, 0, 0]} maxBarSize={30} />
-            <Bar dataKey="utilidad" name="Ganancia" fill={CHART.s3} radius={[4, 4, 0, 0]} maxBarSize={30} />
           </BarChart>
         </ResponsiveContainer>
       </div>

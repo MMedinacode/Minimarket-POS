@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, TrendingUp, X } from 'lucide-react'
+import { Boxes, FileSpreadsheet, MoreHorizontal, PackagePlus, Plus, Search, Sparkles, Tag, TrendingUp, Truck, X } from 'lucide-react'
 import { AutoClassifyModal } from '../components/AutoClassifyModal'
 import { LabelsModal } from '../components/LabelsModal'
 import { PriceRaiseModal } from '../components/PriceRaiseModal'
+import { SupplierAssignModal } from '../components/SupplierAssignModal'
 import { ProductForm } from '../components/ProductForm'
 import { ReceivingPanel } from '../components/ReceivingPanel'
 import { StockAdjustModal } from '../components/StockAdjustModal'
@@ -45,6 +46,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
   const [labelsOpen, setLabelsOpen] = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [raisingPrices, setRaisingPrices] = useState(false)
+  const [assigning, setAssigning] = useState(false)
 
   // "Llegó mercadería": cada escaneo suma 1 al stock
   const [receiving, setReceiving] = useState(false)
@@ -90,7 +92,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
   }
 
   // Escanear aquí: en "llegó mercadería" suma 1; si no, abre el producto (o lo crea)
-  const modalOpen = Boolean(editing || creating !== null || adjusting || toolsOpen || labelsOpen || classifying)
+  const modalOpen = Boolean(editing || creating !== null || adjusting || toolsOpen || labelsOpen || classifying || raisingPrices || assigning)
   useBarcodeScanner({
     enabled: !modalOpen,
     onScan: (code) => {
@@ -128,7 +130,7 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
       if (filter === 'agotado' && st !== 'agotado') return false
       if (filter === 'lentos' && !slowIds?.has(p.id)) return false
       if (words.length) {
-        const hay = normalizeText(`${p.name} ${p.barcode} ${p.category}`)
+        const hay = normalizeText(`${p.name} ${p.barcode} ${p.category} ${p.supplier ?? ''}`)
         if (!words.every((w) => hay.includes(w))) return false
       }
       return true
@@ -328,12 +330,14 @@ export default function Inventory({ params }: { params: URLSearchParams }) {
       <StockAdjustModal product={adjusting} onClose={() => setAdjusting(null)} />
       <AutoClassifyModal open={classifying} onClose={() => setClassifying(false)} />
       <PriceRaiseModal open={raisingPrices} onClose={() => setRaisingPrices(false)} />
+      <SupplierAssignModal open={assigning} onClose={() => setAssigning(false)} />
       <LabelsModal open={labelsOpen} onClose={() => setLabelsOpen(false)} preselect={filter === 'todos' && !query ? [] : rows.map((p) => p.id)} />
 
       <Modal open={toolsOpen} onClose={() => setToolsOpen(false)} size="sm" title="Más opciones">
         <div className="space-y-2">
           {[
             { icon: TrendingUp, title: 'Subir precios', desc: 'Subir todos (o una categoría) en un %, ej: si el proveedor subió', run: () => setRaisingPrices(true) },
+            { icon: Truck, title: 'Anotar proveedores', desc: 'Quién trae cada producto, para pedirle a cada uno por separado', run: () => setAssigning(true) },
             { icon: Tag, title: 'Imprimir etiquetas', desc: 'Con código de barras, para lo que no trae código', run: () => setLabelsOpen(true) },
             { icon: Sparkles, title: 'Ordenar categorías', desc: 'Pone cada producto en su categoría según el nombre', run: () => setClassifying(true) },
             { icon: FileSpreadsheet, title: 'Cargar o descargar Excel', desc: 'Subir tu lista de productos o sacar un respaldo', run: () => navigate('excel') },

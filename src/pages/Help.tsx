@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   TrendingUp,
+  Truck,
   Wallet,
   WifiOff,
   XCircle,
@@ -157,6 +158,24 @@ const TOPICS: Topic[] = [
     ),
   },
   {
+    icon: Truck,
+    title: 'Pedirle a cada proveedor',
+    body: (
+      <Steps>
+        <li>
+          Anota quién te trae cada producto: en <B>Productos → Más opciones → Anotar proveedores</B> escribes el nombre (ej: CCU), marcas sus
+          productos y tocas <B>Guardar</B>. También se puede en la columna <B>Proveedor</B> del Excel.
+        </li>
+        <li>
+          En <B>Inicio → Pedido al proveedor</B> toca el nombre del proveedor. El mensaje queda solo con lo que él te trae.
+        </li>
+        <li>
+          Toca <B>Mandar</B>. Si guardas su WhatsApp, se abre directo su conversación.
+        </li>
+      </Steps>
+    ),
+  },
+  {
     icon: HandCoins,
     title: 'Anotar un gasto',
     body: (
@@ -188,12 +207,18 @@ const TOPICS: Topic[] = [
   },
   {
     icon: Lock,
-    title: 'Para qué sirve «Bloquear pantalla»',
+    title: 'Bloquear pantalla y cerrar sesión',
     body: (
-      <p>
-        Tapa la caja hasta que alguien escriba tu clave. Úsalo si te alejas del mesón, para que un cliente o empleado no vea tus ganancias.
-        No cierra el día, no borra nada y no cambia las ventas: al volver a entrar, todo sigue igual.
-      </p>
+      <div className="space-y-2">
+        <p>
+          <B>Bloquear pantalla</B> tapa la caja hasta que alguien escriba tu clave. Úsalo si te alejas del mesón, para que un cliente o empleado
+          no vea tus ganancias. No cierra el día ni borra nada.
+        </p>
+        <p>
+          <B>Cerrar sesión</B> (en Más) es para salir del todo, por ejemplo si el equipo no es tuyo o lo vas a prestar. Con cuenta, para volver a
+          entrar necesitas tu clave, internet, tu correo y tu contraseña. Tus datos no se borran: quedan en tu cuenta.
+        </p>
+      </div>
     ),
   },
   {

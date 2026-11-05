@@ -21,8 +21,8 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 81 tests (incluye SQL real en PGlite, sin Docker)
-npm run test:e2e  # 28 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
+npm test          # 97 tests (incluye SQL real en PGlite, sin Docker)
+npm run test:e2e  # 31 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
 npm run test:e2e:build   # las mismas contra la versión compilada (con CSP), en .e2e-dist/
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
@@ -74,6 +74,15 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
   con el formato antiguo (clave `sales`) se pasan solas al nuevo en el próximo guardado (`e2e/guardado.spec.ts`).
   Si la lista dice que hay un mes y no está, NO se abre la caja sin esas ventas (local: error; cuenta: se descarga todo).
 - `daySummaryText` (`analytics.ts`) + botón "Resumen por WhatsApp" en Caja (abre `wa.me` con el texto, sin número).
+- `src/lib/suppliers.ts` — proveedor de cada producto (`Product.supplier`, texto libre; "CCU" y "ccu" son el mismo por
+  `supplierKey`) y `orderText`. `OrderModal` filtra por proveedor; `SupplierAssignModal` (Productos → Más opciones) anota
+  muchos de una vez; `settings.supplierPhones` guarda el WhatsApp de cada uno (sin SQL: va en `stores.settings`).
+- `components/SignOutDialog.tsx` — "Cerrar sesión" (Más y menú lateral). Sin cuenta equivale a bloquear; con cuenta la cierra
+  y deja la pref `cuentaCerrada`: al abrir con la clave, `CloudPrompts` pide entrar a la cuenta (si no, se vería una caja vacía).
+- Reportes: período 7/30/90 días (`periodTotals`, `salesByCategory`, `salesBySupplier`, `salesByPayment`, `salesByWeekday`) y
+  `RankBars` en `components/charts.tsx`. Los promedios dividen por días CON ventas (negocio nuevo o que cierra domingos).
+- Google Sheets: NO hay conexión en vivo (exigiría OAuth de Google con verificación o un link público con datos del negocio).
+  Se descarga el Excel y se importa en `sheets.new` (Más → Excel y respaldo). El Excel trae hojas "Por categoria" y "Por proveedor".
 - `src/lib/backup.ts` + `components/BackupReminder.tsx` — sin cuenta, Inicio recuerda cada 7 días descargar
   el Excel (se marca también al exportar desde Excel y respaldo). Con cuenta no aparece.
 
@@ -115,6 +124,7 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/salesChunks.test.ts` — qué meses se escriben, borran y leen.
 - `src/lib/sync/sync.test.ts` también cubre: páginas con horas empatadas, anular una venta ya borrada, numeración
   tras borrar todo y reintentos de operaciones fallidas.
+- `src/lib/suppliers.test.ts` — proveedores, mensaje del pedido, columna Proveedor del Excel y reportes por período.
 - `src/lib/support.test.ts` — corre `scripts/soporte.mjs` de verdad (llaves temporales, `--sin-env --sin-copiar`)
   y comprueba que la app acepte su link una sola vez y rechace vencidos, de otro código o de otra llave.
 
@@ -146,6 +156,8 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `supabase/schema.sql`: `apply_ops` toma un candado por cuenta (`select … for update` en `stores`) y RELANZA los
   errores pasajeros (40P01, 40001, 55P03, 53xxx) para que la app reintente; los demás errores quedan por operación.
   El motor (`engine.ts`) baja a lotes de 1 si un lote completo falla y aparta una operación tras 5 fallos.
+- El proyecto Supabase gratis se pausa solo si nadie lo usa (22-10 y de nuevo el 04-11): antes de una demo con cuenta, revisar
+  que esté activo. Si cambias el esquema, aplica la migración ANTES de `npm run deploy`.
 - Probar campos que actúan al "salir" (onBlur) en el panel del navegador: `el.focus()` no funciona si la ventana no
   tiene foco; disparar `new FocusEvent('focusin'/'focusout', { bubbles: true })`.
 - `scripts/generar-ejemplo.mjs` importa `src/data/mockData.ts` con Node directo: los imports de ese archivo deben llevar

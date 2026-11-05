@@ -2,9 +2,10 @@
 // las hojas exportadas. No depende de SheetJS, así el visor y los tests lo usan
 // directo; excel-io.ts es quien lee y escribe los archivos .xlsx.
 import type { AppData, Expense, Product, Rotation, Sale, Settings, Unit } from '../types'
-import { activeSales, marginPct } from './analytics'
+import { activeSales, marginPct, salesByCategory, salesBySupplier, type ShareRow } from './analytics'
 import { inferCategory, matchCategory } from './categories'
 import { STATUS_LABEL, buildVelocityMap, getStockInfo } from './stock'
+import { cleanSupplier } from './suppliers'
 import { dayKey, formatTime, lineTotal, normalizeText, parseLocaleNumber, parseQty, roundQty, uid } from './utils'
 
 /** Columnas oficiales del Excel de inventario (en este orden) */
@@ -19,9 +20,10 @@ export const INVENTORY_COLUMNS = [
   'Unidad',
   'StockMinimo',
   'StockAviso',
+  'Proveedor',
 ] as const
 
-type Field = 'barcode' | 'name' | 'category' | 'cost' | 'price' | 'stock' | 'rotation' | 'unit' | 'minStock' | 'warnStock'
+type Field = 'barcode' | 'name' | 'category' | 'cost' | 'price' | 'stock' | 'rotation' | 'unit' | 'minStock' | 'warnStock' | 'supplier'
 
 /** Nombres de columna aceptados (sin tildes, espacios ni símbolos) */
 const ALIASES: Record<Field, string[]> = {
@@ -36,6 +38,7 @@ const ALIASES: Record<Field, string[]> = {
   // Rojo ("muy poco") y amarillo ("queda poco")
   minStock: ['stockminimo', 'minimo', 'stockcritico', 'alertastock', 'rojo', 'stockrojo'],
   warnStock: ['stockaviso', 'aviso', 'stockamarillo', 'amarillo', 'stockcerca', 'cercadecritico', 'stockbajo'],
+  supplier: ['proveedor', 'proveedores', 'distribuidor', 'distribuidora', 'quienlotrae', 'empresa'],
 }
 
 const REQUIRED: Field[] = ['name', 'price']
@@ -51,6 +54,7 @@ const FIELD_LABEL: Record<Field, string> = {
   unit: 'Unidad',
   minStock: 'StockMinimo',
   warnStock: 'StockAviso',
+  supplier: 'Proveedor',
 }
 
 const headerKey = (h: unknown) => normalizeText(String(h ?? '')).replace(/[^a-z0-9]/g, '')
@@ -80,6 +84,7 @@ export interface ProductDraft {
   rotation: Rotation
   minStock: number | null
   warnStock: number | null
+  supplier?: string
   /**
    * Datos que el Excel NO traía (columna ausente o celda vacía) y se rellenaron con un valor por
    * defecto. Si el producto ya existe, se conservan los suyos: una lista del proveedor con solo
@@ -88,7 +93,7 @@ export interface ProductDraft {
   keep?: KeepField[]
 }
 
-export type KeepField = 'cost' | 'stock' | 'unit' | 'rotation' | 'category' | 'minStock' | 'warnStock'
+export type KeepField = 'cost' | 'stock' | 'unit' | 'rotation' | 'category' | 'minStock' | 'warnStock' | 'supplier'
 
 export interface ImportRow {
   /** Número de fila tal como se ve en Excel */
@@ -246,6 +251,9 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
       warnings.push('El aviso amarillo es menor que el rojo: se usó el mismo número')
     }
 
+    const supplier = cleanSupplier(String(get(row, 'supplier') ?? ''))
+    if (!supplier) keep.push('supplier')
+
     // Solo las filas válidas "reservan" su código: si la fila 5 tiene un error,
     // una fila 6 correcta con el mismo código no debe rechazarse por duplicada.
     if (!errors.length) {
@@ -273,6 +281,7 @@ export function parseInventoryRows(aoa: unknown[][], knownCategories: readonly s
             rotation,
             minStock: minStock !== null && minStock >= 0 ? minStock : null,
             warnStock: warnStock !== null && warnStock >= 0 ? Math.max(warnStock, minStock ?? 0) : null,
+            supplier,
             keep,
           },
     })
@@ -379,6 +388,7 @@ export function inventorySheet(products: Product[], settings: Settings, velocity
       { header: 'Unidad', format: 'text' },
       { header: 'StockMinimo', format: 'qty' },
       { header: 'StockAviso', format: 'qty' },
+      { header: 'Proveedor', format: 'text' },
       { header: 'Utilidad', format: 'money' },
       { header: 'Margen %', format: 'pct' },
       { header: 'EstadoStock', format: 'text' },
@@ -397,6 +407,7 @@ export function inventorySheet(products: Product[], settings: Settings, velocity
         p.unit,
         p.minStock ?? '',
         p.warnStock ?? '',
+        p.supplier ?? '',
         p.price - p.cost,
         Math.round(marginPct(p.cost, p.price) * 10) / 10,
         STATUS_LABEL[info.status],
@@ -517,7 +528,26 @@ export function buildSheets(data: AppData): SheetData[] {
     salesSheet(data.sales),
     expensesSheet(data.expenses),
     dailySummarySheet(data.sales, data.expenses),
+    shareSheet('Por categoria', 'Categoria', salesByCategory(data.sales, ALL_TIME_FROM, ALL_TIME_TO, 1000)),
+    shareSheet('Por proveedor', 'Proveedor', salesBySupplier(data.sales, data.products, ALL_TIME_FROM, ALL_TIME_TO, 1000)),
   ]
+}
+
+// Todo el historial, sin importar la fecha
+const ALL_TIME_FROM = new Date(0)
+const ALL_TIME_TO = new Date(8_640_000_000_000_000)
+
+/** Cuánto dejó cada categoría o proveedor en todo el historial: listo para graficar en Excel o Google Sheets */
+function shareSheet(name: string, header: string, rows: ShareRow[]): SheetData {
+  return {
+    name,
+    columns: [
+      { header, format: 'text' },
+      { header: 'Vendido', format: 'money' },
+      { header: '% del total', format: 'pct' },
+    ],
+    rows: rows.map((r) => [r.name, r.total, Math.round(r.pct * 10) / 10]),
+  }
 }
 
 /** Plantilla vacía con 3 filas de ejemplo para que el dueño la complete */
@@ -529,9 +559,9 @@ export function templateSheet(): SheetData {
       format: h.startsWith('Precio') ? ('money' as const) : ('text' as const),
     })),
     rows: [
-      ['7801234500013', 'Coca-Cola 1.5L', 'Bebidas', 1290, 1990, 24, 'Alta', 'un', ''],
-      ['', 'Pan Hallulla', 'Panadería', 1500, 2400, 20, 'Alta', 'kg', ''],
-      ['7801234500020', 'Lentejas 1kg', '', 1890, 2690, 6, 'Baja', 'un', 2],
+      ['7801234500013', 'Coca-Cola 1.5L', 'Bebidas', 1290, 1990, 24, 'Alta', 'un', '', '', 'Coca-Cola Andina'],
+      ['', 'Pan Hallulla', 'Panadería', 1500, 2400, 20, 'Alta', 'kg', '', '', 'Panadería Don Luis'],
+      ['7801234500020', 'Lentejas 1kg', '', 1890, 2690, 6, 'Baja', 'un', 2, '', ''],
     ],
   }
 }

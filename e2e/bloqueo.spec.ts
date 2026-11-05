@@ -61,6 +61,27 @@ test.describe('Bloquear pantalla y clave', () => {
     await expect(campo).toBeDisabled()
   })
 
+  test('cerrar sesión sin cuenta pide confirmar y luego la clave', async ({ page }) => {
+    await crearCaja(page)
+    await irA(page, 'Más')
+    await page.getByRole('main').getByRole('button', { name: 'Cerrar sesión' }).click()
+    const aviso = page.getByRole('dialog', { name: '¿Cerrar sesión?' })
+    await expect(aviso).toContainText('quedan guardados en este equipo')
+
+    await aviso.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(page.getByRole('heading', { name: 'Cómo se ve' })).toBeVisible() // cancelar no cierra nada
+
+    await page.getByRole('main').getByRole('button', { name: 'Cerrar sesión' }).click()
+    await aviso.getByRole('button', { name: 'Cerrar sesión' }).click()
+    await expect(page.getByText('Escribe tu clave para abrir la caja')).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('Escribe tu clave para abrir la caja')).toBeVisible() // recargar no la abre
+
+    await page.getByLabel('Clave', { exact: true }).fill(CLAVE)
+    await page.getByRole('button', { name: 'Entrar' }).click()
+    await expect(page.getByRole('dialog', { name: 'Entra a tu cuenta' })).toBeHidden() // sin cuenta no se pide
+  })
+
   test('bloquear desde el menú lateral del computador', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await crearCaja(page)

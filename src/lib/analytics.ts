@@ -1,5 +1,6 @@
 // Cálculos del dashboard y de caja. Todo es puro (sin React) para poder testearlo.
 import { ALL_PAYMENT_METHODS, type Expense, type PaymentMethod, type Product, type Sale, type Unit } from '../types'
+import { listSuppliers, NO_SUPPLIER, supplierKey } from './suppliers'
 import { addDays, dayKey, formatCLP, formatDateLong, formatDayShort, formatQty, lineTotal, parseDayKey, startOfDay } from './utils'
 
 export const activeSales = (sales: Sale[]) => sales.filter((s) => !s.voided)
@@ -259,6 +260,133 @@ export function dailySeries(sales: Sale[], expenses: Expense[], days: number, en
     if (p) p.gastos += e.amount
   }
   return points
+}
+
+// ---------- Reportes por período ----------
+
+export interface PeriodTotals {
+  ventas: number
+  ganancia: number
+  gastos: number
+  transacciones: number
+  /** Días con al menos una venta (un negocio nuevo o que cierra domingos no baja su promedio) */
+  diasConVentas: number
+}
+
+/** Totales entre dos momentos (ambos incluidos) */
+export function periodTotals(sales: Sale[], expenses: Expense[], from: Date, to: Date): PeriodTotals {
+  const a = from.getTime()
+  const b = to.getTime()
+  const out: PeriodTotals = { ventas: 0, ganancia: 0, gastos: 0, transacciones: 0, diasConVentas: 0 }
+  const dias = new Set<string>()
+  for (const s of sales) {
+    if (s.voided) continue
+    const t = new Date(s.date).getTime()
+    if (t < a || t > b) continue
+    out.ventas += s.total
+    out.ganancia += s.total - s.cost
+    out.transacciones++
+    dias.add(dayKey(s.date))
+  }
+  out.diasConVentas = dias.size
+  for (const e of expenses) {
+    const t = new Date(e.date).getTime()
+    if (t >= a && t <= b) out.gastos += e.amount
+  }
+  return out
+}
+
+export interface ShareRow {
+  name: string
+  total: number
+  /** % del total, de 0 a 100 */
+  pct: number
+}
+
+/** Ordena de mayor a menor; lo que no cabe en `limit` se junta en "Otros" para no llenar de filas */
+function toShares(acc: Map<string, number>, limit: number): ShareRow[] {
+  const sum = [...acc.values()].reduce((a, v) => a + v, 0)
+  const sorted = [...acc.entries()].sort((a, b) => b[1] - a[1])
+  const top = sorted.length > limit ? sorted.slice(0, limit - 1) : sorted
+  const rest = sorted.slice(top.length).reduce((a, [, v]) => a + v, 0)
+  // Si ya existe una categoría "Otros", lo que sobra se suma a ella (no dos filas iguales)
+  const others = top.find(([name]) => name === 'Otros')
+  const rows = others ? top.map(([name, v]): [string, number] => [name, name === 'Otros' ? v + rest : v]) : rest > 0 ? [...top, ['Otros', rest] as [string, number]] : top
+  return rows.map(([name, total]) => ({ name, total, pct: sum ? (total / sum) * 100 : 0 }))
+}
+
+/** Suma cada línea vendida en el período en el grupo que diga `group` */
+function shareOfLines(sales: Sale[], from: Date, to: Date, limit: number, group: (it: Sale['items'][number]) => string): ShareRow[] {
+  const a = from.getTime()
+  const b = to.getTime()
+  const acc = new Map<string, number>()
+  for (const s of sales) {
+    if (s.voided) continue
+    const t = new Date(s.date).getTime()
+    if (t < a || t > b) continue
+    for (const it of s.items) {
+      const key = group(it)
+      acc.set(key, (acc.get(key) ?? 0) + lineTotal(it.qty, it.unitPrice))
+    }
+  }
+  return toShares(acc, limit)
+}
+
+export function salesByCategory(sales: Sale[], from: Date, to: Date, limit = 7): ShareRow[] {
+  return shareOfLines(sales, from, to, limit, (it) => it.category || 'Otros')
+}
+
+/** Ventas por proveedor, según quién trae HOY cada producto (lo que no tiene, va a "Sin proveedor") */
+export function salesBySupplier(sales: Sale[], products: Product[], from: Date, to: Date, limit = 7): ShareRow[] {
+  const names = new Map(listSuppliers(products).map((s) => [s.key, s.name]))
+  const byProduct = new Map(products.map((p) => [p.id, supplierKey(p.supplier)]))
+  return shareOfLines(sales, from, to, limit, (it) => names.get(byProduct.get(it.productId) ?? '') ?? NO_SUPPLIER)
+}
+
+/** Cuánto entra por cada forma de pago. Débito y Crédito (ventas antiguas) cuentan como Tarjeta. */
+export function salesByPayment(sales: Sale[], from: Date, to: Date): ShareRow[] {
+  const a = from.getTime()
+  const b = to.getTime()
+  const acc = new Map<string, number>()
+  for (const s of sales) {
+    if (s.voided) continue
+    const t = new Date(s.date).getTime()
+    if (t < a || t > b) continue
+    const key = s.payment === 'Débito' || s.payment === 'Crédito' ? 'Tarjeta' : s.payment
+    acc.set(key, (acc.get(key) ?? 0) + s.total)
+  }
+  return toShares(acc, 4)
+}
+
+export interface WeekdayPoint {
+  label: string
+  /** Venta promedio de ese día de la semana */
+  total: number
+}
+
+const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+/** Venta promedio por día de la semana en los últimos `days` días, partiendo el lunes (solo días con ventas) */
+export function salesByWeekday(sales: Sale[], days: number, endKey: string = dayKey()): WeekdayPoint[] {
+  const totals = new Array<number>(7).fill(0)
+  const index = new Map<string, number>()
+  const end = parseDayKey(endKey)
+  for (let i = 0; i < days; i++) {
+    const d = addDays(end, -i)
+    index.set(dayKey(d), (d.getDay() + 6) % 7) // lunes = 0
+  }
+  const daysSold = new Set<string>()
+  for (const s of sales) {
+    if (s.voided) continue
+    const key = dayKey(s.date)
+    const w = index.get(key)
+    if (w === undefined) continue
+    totals[w] += s.total
+    daysSold.add(key)
+  }
+  const times = new Array<number>(7).fill(0)
+  for (const key of daysSold) times[index.get(key)!]++
+  return WEEKDAYS.map((label, i) => ({ label, total: times[i] ? Math.round(totals[i] / times[i]) : 0 }))
 }
 
 // ---------- Márgenes ----------

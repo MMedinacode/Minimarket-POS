@@ -409,6 +409,38 @@ describe('sincronización con PostgreSQL real', () => {
     expect(res.r.errors).toHaveLength(1)
     expect(await asUser(USER_A, `select id from products where id = 'pan'`)).toHaveLength(1)
   })
+  it('el proveedor llega al otro equipo, se puede cambiar y otra caja sin el campo no lo borra', async () => {
+    const bus = new Set<() => void>()
+    const pc = device(USER_A, bus)
+    const cel = device(USER_A, bus)
+    await pc.engine.start()
+    await cel.engine.start()
+    pc.engine.dispatch({ type: 'addProduct', product: product({ id: 'bilz', supplier: 'CCU' }) })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    const enCel = () => cel.engine.getSnapshot().data!.products.find((p) => p.id === 'bilz')!
+    expect(enCel().supplier).toBe('CCU')
+
+    pc.engine.dispatch({ type: 'updateProduct', id: 'bilz', patch: { supplier: 'Distribuidora Sur' } })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(enCel().supplier).toBe('Distribuidora Sur')
+
+    // Una caja con la versión anterior actualiza el producto y no conoce el proveedor
+    const { supplier: _s, ...sinProveedor } = product({ id: 'bilz', name: 'Bilz 2L' })
+    pc.engine.dispatch({ type: 'upsertProducts', products: [sinProveedor] })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(enCel()).toMatchObject({ name: 'Bilz 2L', supplier: 'Distribuidora Sur' })
+    // La pantalla del equipo que lo mandó muestra lo mismo que el servidor
+    expect(pc.engine.getSnapshot().data!.products.find((p) => p.id === 'bilz')!.supplier).toBe('Distribuidora Sur')
+
+    pc.engine.dispatch({ type: 'updateProduct', id: 'bilz', patch: { supplier: '' } })
+    await pc.engine.syncNow()
+    await cel.engine.syncNow()
+    expect(enCel().supplier).toBe('')
+  })
+
   it('los avisos del producto (rojo y amarillo) llegan iguales al otro equipo', async () => {
     const bus = new Set<() => void>()
     const pc = device(USER_A, bus)

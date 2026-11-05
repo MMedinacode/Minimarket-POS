@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { BarChart3, ChevronRight, Cloud, FileSpreadsheet, HelpCircle, Lock, MessageCircle, Moon, Settings, Sun, Tag, Type } from 'lucide-react'
+import { BarChart3, ChevronRight, Cloud, FileSpreadsheet, HelpCircle, Lock, LogOut, MessageCircle, Moon, Settings, Sun, Tag, Type } from 'lucide-react'
 import { LabelsModal } from '../components/LabelsModal'
+import { SignOutDialog } from '../components/SignOutDialog'
 import { Card, Segmented } from '../components/ui/primitives'
 import { navigate } from '../hooks/useHashRoute'
 import type { TextSize, Theme } from '../hooks/useTheme'
@@ -20,6 +21,7 @@ export default function More({ theme, onTheme, textSize, onTextSize, onLock }: P
   const cloud = useCloud()
   const { settings } = useData()
   const [labelsOpen, setLabelsOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
 
   const accountDesc = !cloud.enabled
     ? 'Usar la caja en varios equipos'
@@ -104,6 +106,16 @@ export default function More({ theme, onTheme, textSize, onTextSize, onLock }: P
       </button>
       <p className="text-center text-sm text-subtle">Tapa la caja hasta que escribas tu clave, por si te alejas del mesón. No cierra el día ni borra nada.</p>
 
+      <button
+        type="button"
+        onClick={() => setSignOutOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-line-strong bg-surface py-4 text-lg font-semibold hover:bg-surface-2"
+      >
+        <LogOut className="size-5" /> Cerrar sesión
+      </button>
+      <p className="text-center text-sm text-subtle">Para salir del todo, por ejemplo si este equipo no es tuyo o lo vas a prestar.</p>
+
+      <SignOutDialog open={signOutOpen} onClose={() => setSignOutOpen(false)} onClosed={onLock} />
       <LabelsModal open={labelsOpen} onClose={() => setLabelsOpen(false)} />
     </div>
   )

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, House, Lock, Menu, Package, ShoppingCart, Store, Wallet } from 'lucide-react'
+import { ArrowLeft, House, Lock, LogOut, Menu, Package, ShoppingCart, Store, Wallet } from 'lucide-react'
 import { MORE_ROUTES, navigate, type Route } from '../hooks/useHashRoute'
 import { isAlert } from '../lib/stock'
 import { cn, formatDateLong, formatTime } from '../lib/utils'
 import { useData, useDerived } from '../store/AppStore'
+import { SignOutDialog } from './SignOutDialog'
 import { SyncBadge } from './SyncBadge'
 
 // Solo 5 opciones, siempre con texto (los íconos solos confunden)
@@ -44,6 +45,7 @@ interface Props {
 }
 
 export function AppShell({ route, onLock, children }: Props) {
+  const [signOutOpen, setSignOutOpen] = useState(false)
   const { settings } = useData()
   const { stockInfo } = useDerived()
   const alerts = useMemo(() => [...stockInfo.values()].filter((i) => isAlert(i.status)).length, [stockInfo])
@@ -108,6 +110,14 @@ export function AppShell({ route, onLock, children }: Props) {
           >
             <Lock className="size-5" /> Bloquear pantalla
           </button>
+          <button
+            type="button"
+            onClick={() => setSignOutOpen(true)}
+            className="flex h-12 w-full items-center gap-3 rounded-xl px-3 font-medium text-muted hover:bg-surface-2 hover:text-fg"
+          >
+            <LogOut className="size-5" /> Cerrar sesión
+          </button>
+          <SignOutDialog open={signOutOpen} onClose={() => setSignOutOpen(false)} onClosed={onLock} />
         </div>
       </aside>
 

@@ -225,8 +225,11 @@ function createCloudApi(deps: CloudDeps) {
       if (!error) deps.setRecovery(false)
       return error ? friendlyAuthError(error.message) : null
     },
-    /** Cierra la sesión de la cuenta. Si hay ventas sin subir, avisa (salvo force). */
-    async signOut(force = false): Promise<{ unsynced: number }> {
+    /**
+     * Cierra la sesión de la cuenta. Si hay ventas sin subir, avisa (salvo force).
+     * askAgain: al volver a abrir la caja se pide entrar a la cuenta (si no, se vería una caja vacía).
+     */
+    async signOut(force = false, askAgain = false): Promise<{ unsynced: number }> {
       const engine = deps.engine()
       const unsynced = engine?.getSnapshot().pending ?? 0
       if (unsynced > 0 && !force) return { unsynced }
@@ -236,6 +239,7 @@ function createCloudApi(deps: CloudDeps) {
       const { data } = await c.auth.getSession()
       if (data.session) await new IdbSyncStorage(data.session.user.id).clear()
       await c.auth.signOut({ scope: 'local' })
+      if (askAgain) writePref('cuentaCerrada', true)
       return { unsynced: 0 }
     },
     syncNow() {
@@ -401,7 +405,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   // La cuenta abierta aquí pasa a ser "la cuenta de este equipo"
   useEffect(() => {
-    if (user) writePref('cuentaEquipo', { id: user.id, email: user.email })
+    if (!user) return
+    writePref('cuentaEquipo', { id: user.id, email: user.email })
+    writePref('cuentaCerrada', false)
   }, [user])
 
   // 5) Motor de sincronización mientras haya sesión

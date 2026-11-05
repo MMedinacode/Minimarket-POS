@@ -4,7 +4,9 @@ import { allCategories, inferCategory } from '../lib/categories'
 import { nextInternalCode } from '../lib/ean13'
 import { beepOk } from '../lib/sound'
 import { getStockInfo, suggestRotation } from '../lib/stock'
+import { listSuppliers, matchSupplier } from '../lib/suppliers'
 import { StockLevelsLegend } from './StockLevelsLegend'
+import { SupplierField } from './SupplierField'
 import { cn, formatCLP, parseQty, roundQty } from '../lib/utils'
 import { useActions, useData, useDerived } from '../store/AppStore'
 import { ROTATION_LABEL, ROTATIONS, type Product, type Rotation, type Unit } from '../types'
@@ -49,6 +51,7 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
   const [rotation, setRotation] = useState<Rotation>(product?.rotation ?? 'Media')
   const [minStock, setMinStock] = useState(product?.minStock != null ? String(product.minStock).replace('.', ',') : '')
   const [warnStock, setWarnStock] = useState(product?.warnStock != null ? String(product.warnStock).replace('.', ',') : '')
+  const [supplier, setSupplier] = useState(product?.supplier ?? '')
   const [scanning, setScanning] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -110,6 +113,7 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
       rotation,
       minStock: minN,
       warnStock: warnN,
+      supplier: matchSupplier(supplier, listSuppliers(products)),
     }
     if (product) {
       // La cantidad solo se envía si se cambió: así no se pisa una venta que
@@ -307,6 +311,8 @@ function ProductFormInner({ onClose, product, initialBarcode, onSaved }: Props) 
             </Select>
           )}
         </Field>
+
+        <SupplierField className="sm:col-span-2" value={supplier} onChange={setSupplier} />
 
         {/* Lo menos usado, escondido para no confundir */}
         <details className="group rounded-xl border border-line sm:col-span-2">

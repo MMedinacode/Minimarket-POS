@@ -61,7 +61,7 @@ export default function Account() {
           : { icon: <CheckCircle2 className="size-4" />, text: 'Todo respaldado', tone: 'ok' as const }
 
   const signOut = async (force = false) => {
-    const res = await cloud.api.signOut(force)
+    const res = await cloud.api.signOut(force, true)
     if (res.unsynced > 0) setConfirmOut(res.unsynced)
     else toast.success('Cerraste la cuenta en este equipo')
   }

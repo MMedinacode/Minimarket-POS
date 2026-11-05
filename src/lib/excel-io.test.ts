@@ -48,7 +48,7 @@ describe('lectura de archivos', () => {
     const data = buildDemoData()
     const buffer = XLSX.write(buildWorkbook(data), { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
     const wb = await readWorkbookFile(new File([buffer], 'respaldo.xlsx'))
-    expect(wb.sheetNames).toEqual(['Inventario', 'Ventas', 'Gastos', 'Resumen diario'])
+    expect(wb.sheetNames).toEqual(['Inventario', 'Ventas', 'Gastos', 'Resumen diario', 'Por categoria', 'Por proveedor'])
     expect(wb.sheetName).toBe('Inventario')
     const r = parseInventoryRows(wb.aoa, allCategories(data.products.map((p) => p.category)))
     expect(r.rows.filter((x) => x.draft)).toHaveLength(data.products.length)

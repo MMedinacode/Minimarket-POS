@@ -35,6 +35,7 @@ create table if not exists public.products (
   rotation   text not null default 'Media' check (rotation in ('Alta', 'Media', 'Baja')),
   min_stock  numeric,                                -- rojo ("muy poco"): null = automático
   warn_stock numeric,                                -- amarillo ("queda poco"): null = automático
+  supplier   text not null default '',               -- quién lo trae (CCU, panadería…)
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp(),
   deleted    boolean not null default false,        -- borrado "suave": los demás dispositivos se enteran
@@ -134,6 +135,7 @@ $$;
 
 -- Columnas agregadas después de la primera versión (el script se puede volver a ejecutar)
 alter table public.products add column if not exists warn_stock numeric;
+alter table public.products add column if not exists supplier text not null default '';
 
 -- Crea o actualiza un producto desde JSON (formato de la app)
 create or replace function public.upsert_product(uid uuid, p jsonb, with_stock boolean) returns void
@@ -143,7 +145,7 @@ begin
   if uid is distinct from auth.uid() then
     raise exception 'No autorizado';
   end if;
-  insert into products as t (owner_id, id, barcode, name, category, cost, price, stock, unit, rotation, min_stock, warn_stock, created_at, deleted)
+  insert into products as t (owner_id, id, barcode, name, category, cost, price, stock, unit, rotation, min_stock, warn_stock, supplier, created_at, deleted)
   values (
     uid,
     p->>'id',
@@ -157,6 +159,7 @@ begin
     coalesce(p->>'rotation', 'Media'),
     (p->>'minStock')::numeric,
     (p->>'warnStock')::numeric,
+    coalesce(p->>'supplier', ''),
     coalesce((p->>'createdAt')::timestamptz, clock_timestamp()),
     false
   )
@@ -171,6 +174,8 @@ begin
     rotation  = excluded.rotation,
     min_stock = excluded.min_stock,
     warn_stock = excluded.warn_stock,
+    -- Una caja con la versión anterior no manda este campo: no debe borrar el proveedor
+    supplier  = case when p ? 'supplier' then excluded.supplier else t.supplier end,
     deleted   = false;
 end $$;
 
@@ -245,7 +250,8 @@ begin
             unit      = case when p ? 'unit'     then p->>'unit' else unit end,
             rotation  = case when p ? 'rotation' then p->>'rotation' else rotation end,
             min_stock = case when p ? 'minStock' then (p->>'minStock')::numeric else min_stock end,
-            warn_stock = case when p ? 'warnStock' then (p->>'warnStock')::numeric else warn_stock end
+            warn_stock = case when p ? 'warnStock' then (p->>'warnStock')::numeric else warn_stock end,
+            supplier  = case when p ? 'supplier' then coalesce(p->>'supplier', '') else supplier end
           where owner_id = uid and id = op->>'id';
 
         when 'deleteProduct' then

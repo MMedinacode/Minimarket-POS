@@ -1,6 +1,7 @@
 // Piezas comunes de los gráficos (Recharts) para que todos se vean iguales
 // y respeten el tema claro/oscuro usando variables CSS.
 import type { ReactNode } from 'react'
+import { formatCLP } from '../lib/utils'
 
 export const CHART = {
   grid: 'var(--chart-grid)',
@@ -50,6 +51,46 @@ export function ChartTooltip({ active, payload, label, valueFormatter = String, 
       ))}
       {extra?.(label)}
     </div>
+  )
+}
+
+export interface RankItem {
+  /** Para distinguir dos filas con el mismo nombre */
+  id?: string
+  name: string
+  /** Largo de la barra */
+  value: number
+  /** Texto a la derecha (si no viene, el valor en pesos) */
+  label?: string
+  /** Texto suave después del valor, ej: "23%" */
+  note?: string
+}
+
+/**
+ * Lista con barras, para comparar cantidades: el nombre completo y el número se leen siempre
+ * (también en celular y con letra grande), sin tener que tocar el gráfico.
+ */
+export function RankBars({ items, color = CHART.s1 }: { items: RankItem[]; color?: string }) {
+  const max = Math.max(1, ...items.map((i) => i.value))
+  return (
+    <ul className="space-y-3">
+      {items.map((i) => (
+        <li key={i.id ?? i.name}>
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate font-medium" title={i.name}>
+              {i.name}
+            </span>
+            <span className="tabular shrink-0 font-semibold">
+              {i.label ?? formatCLP(i.value)}
+              {i.note && <span className="ml-1.5 font-normal text-subtle">{i.note}</span>}
+            </span>
+          </div>
+          <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-surface-2">
+            <div className="h-full rounded-full" style={{ width: `${Math.max(1.5, (i.value / max) * 100)}%`, background: color }} />
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 

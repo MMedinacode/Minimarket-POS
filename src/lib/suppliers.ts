@@ -41,6 +41,19 @@ export function listSuppliers(products: Pick<Product, 'supplier'>[]): SupplierIn
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 }
 
+/**
+ * Tope prudente para el link de WhatsApp: el texto va dentro de la dirección y un link enorme
+ * puede no abrir. Con esto cabe sin problemas el pedido normal a un proveedor (unos 100 productos).
+ */
+const MAX_WHATSAPP_LINK = 4000
+
+/** Link para abrir WhatsApp con el mensaje escrito. Si no cabe (`fits: false`), el link va sin el texto */
+export function whatsappLink(text: string, phone?: string): { url: string; fits: boolean } {
+  const base = `https://wa.me/${phone ?? ''}`
+  const url = `${base}?text=${encodeURIComponent(text)}`
+  return url.length <= MAX_WHATSAPP_LINK ? { url, fits: true } : { url: base, fits: false }
+}
+
 /** Si ya existe ese proveedor con otra escritura ("ccu" y "CCU"), se usa la que ya estaba */
 export function matchSupplier(name: string, known: SupplierInfo[]): string {
   const clean = cleanSupplier(name)

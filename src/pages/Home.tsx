@@ -5,9 +5,9 @@ import { DemoBanner } from '../components/DemoBanner'
 import { ExpenseModal } from '../components/ExpenseModal'
 import { OrderModal } from '../components/OrderModal'
 import { navigate } from '../hooks/useHashRoute'
-import { summarizeDay } from '../lib/analytics'
+import { soldWithoutCost, summarizeDay } from '../lib/analytics'
 import { isAlert, isWarning } from '../lib/stock'
-import { cn, formatCLP, formatDateLong } from '../lib/utils'
+import { addDays, cn, formatCLP, formatDateLong, parseDayKey } from '../lib/utils'
 import { useCloud, useData, useDerived } from '../store/AppStore'
 import { useToday } from '../hooks/useToday'
 
@@ -21,6 +21,10 @@ export default function Home() {
 
   const today = useToday()
   const day = useMemo(() => summarizeDay(sales, expenses, today), [sales, expenses, today])
+  const noCost = useMemo(() => {
+    const from = parseDayKey(today)
+    return soldWithoutCost(sales, from, new Date(addDays(from, 1).getTime() - 1))
+  }, [sales, today])
   // Rojo: hay que pedir ya · Amarillo: pedir pronto
   const { running, soon } = useMemo(() => {
     const all = [...stockInfo.values()]
@@ -43,7 +47,11 @@ export default function Home() {
         <Stat
           label="Ganaste hoy"
           value={formatCLP(day.netProfit)}
-          sub="Lo vendido, menos lo que te costó y los gastos"
+          sub={
+            noCost
+              ? `Sale más alto de lo real: ${noCost === 1 ? '1 producto vendido hoy no tiene anotado' : `${noCost} productos vendidos hoy no tienen anotado`} cuánto te costó`
+              : 'Lo vendido, menos lo que te costó y los gastos'
+          }
           valueClass={day.netProfit < 0 ? 'text-danger-ink' : 'text-ok-ink'}
         />
         <button type="button" className="text-left" onClick={() => navigate('productos', { filtro: running || !soon ? 'acabando' : 'pronto' })}>

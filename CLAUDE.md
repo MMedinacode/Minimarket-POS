@@ -21,8 +21,8 @@ todos los días. Por eso:
 
 ```bash
 npm run dev       # http://localhost:5173
-npm test          # 97 tests (incluye SQL real en PGlite, sin Docker)
-npm run test:e2e  # 31 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
+npm test          # 99 tests (incluye SQL real en PGlite, sin Docker)
+npm run test:e2e  # 32 pruebas de punta a punta con Playwright en Edge (sin descargar navegadores)
 npm run test:e2e:build   # las mismas contra la versión compilada (con CSP), en .e2e-dist/
 npm run build     # tsc -b + vite build (+ service worker PWA)
 npm run deploy    # build + publica dist/ en la rama gh-pages
@@ -77,6 +77,8 @@ modo oscuro con clase `.dark`). Navegación por hash (`src/hooks/useHashRoute.ts
 - `src/lib/suppliers.ts` — proveedor de cada producto (`Product.supplier`, texto libre; "CCU" y "ccu" son el mismo por
   `supplierKey`) y `orderText`. `OrderModal` filtra por proveedor; `SupplierAssignModal` (Productos → Más opciones) anota
   muchos de una vez; `settings.supplierPhones` guarda el WhatsApp de cada uno (sin SQL: va en `stores.settings`).
+  Un pedido enorme no cabe en el link de WhatsApp (`whatsappLink`, tope 4.000 caracteres): se copia para pegarlo.
+- `soldWithoutCost` (`analytics.ts`): sin costo anotado toda la venta cuenta como ganancia; Inicio y Reportes lo avisan.
 - `components/SignOutDialog.tsx` — "Cerrar sesión" (Más y menú lateral). Sin cuenta equivale a bloquear; con cuenta la cierra
   y deja la pref `cuentaCerrada`: al abrir con la clave, `CloudPrompts` pide entrar a la cuenta (si no, se vería una caja vacía).
 - Reportes: período 7/30/90 días (`periodTotals`, `salesByCategory`, `salesBySupplier`, `salesByPayment`, `salesByWeekday`) y

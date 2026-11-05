@@ -366,6 +366,23 @@ export interface WeekdayPoint {
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
+/**
+ * Productos distintos vendidos sin costo anotado. Toda su venta cuenta como ganancia, así que
+ * la ganancia sale más alta de lo real (pasa mucho en bazares que no anotan los costos).
+ */
+export function soldWithoutCost(sales: Sale[], from: Date, to: Date): number {
+  const a = from.getTime()
+  const b = to.getTime()
+  const ids = new Set<string>()
+  for (const s of sales) {
+    if (s.voided) continue
+    const t = new Date(s.date).getTime()
+    if (t < a || t > b) continue
+    for (const i of s.items) if (i.unitCost <= 0 && i.unitPrice > 0) ids.add(i.productId)
+  }
+  return ids.size
+}
+
 /** Venta promedio por día de la semana en los últimos `days` días, partiendo el lunes (solo días con ventas) */
 export function salesByWeekday(sales: Sale[], days: number, endKey: string = dayKey()): WeekdayPoint[] {
   const totals = new Array<number>(7).fill(0)

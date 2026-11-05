@@ -29,6 +29,7 @@ import {
   marginRows,
   pctChange,
   periodTotals,
+  soldWithoutCost,
   salesByCategory,
   salesByHour,
   salesByPayment,
@@ -67,6 +68,7 @@ export default function Reports() {
   const days = DAYS[period]
   const range = useMemo<Range>(() => ({ from: addDays(startOfDay(now), -(days - 1)), to: now }), [now, days])
   const totals = useMemo(() => periodTotals(sales, expenses, range.from, range.to), [sales, expenses, range])
+  const noCost = useMemo(() => soldWithoutCost(sales, range.from, range.to), [sales, range])
   const before = useMemo(
     () => periodTotals(sales, expenses, addDays(range.from, -days), addDays(range.to, -days)),
     [sales, expenses, range, days],
@@ -120,6 +122,12 @@ export default function Reports() {
         <KpiCard icon={<CalendarDays />} label="Promedio por día" value={formatCLP(totals.diasConVentas ? totals.ventas / totals.diasConVentas : 0)} foot={<span>{formatInt(totals.transacciones)} ventas en {totals.diasConVentas} {totals.diasConVentas === 1 ? 'día' : 'días'}</span>} />
         <KpiCard icon={<Receipt />} label="Gastos anotados" value={formatCLP(totals.gastos)} foot={<span>En estos {days} días</span>} />
       </div>
+      {noCost > 0 && (
+        <p className="text-sm text-muted">
+          <strong>Ojo:</strong> la ganancia sale más alta de lo real porque {noCost === 1 ? '1 producto vendido no tiene anotado' : `${noCost} productos vendidos no tienen anotado`} cuánto te
+          costó. Anótalo en Productos.
+        </p>
+      )}
       <TrendCard days={days} range={range} />
       <div className="grid gap-4 sm:gap-5 xl:grid-cols-2">
         <ShareCard range={range} />

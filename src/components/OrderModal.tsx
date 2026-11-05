@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ClipboardList, Copy, MessageCircle, Pencil, Share2, Truck } from 'lucide-react'
 import { isAlert, isWarning, suggestOrderQty } from '../lib/stock'
-import { cleanSupplier, formatPhone, listSuppliers, NO_SUPPLIER, normalizePhone, orderText, supplierKey } from '../lib/suppliers'
+import { cleanSupplier, formatPhone, listSuppliers, NO_SUPPLIER, normalizePhone, orderText, supplierKey, whatsappLink } from '../lib/suppliers'
 import { cn, formatCLP, formatQty, parseQty } from '../lib/utils'
 import type { Product, StockStatus } from '../types'
 import { useActions, useData, useDerived } from '../store/AppStore'
@@ -96,6 +96,21 @@ function Inner({ onClose }: { onClose: () => void }) {
       /* el usuario canceló */
     }
   }
+  const sendWhatsApp = async () => {
+    const { url, fits } = whatsappLink(text, phone)
+    if (fits) {
+      window.open(url, '_blank', 'noopener')
+      return
+    }
+    // Un pedido enorme no cabe en el link: se copia para pegarlo en WhatsApp
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('El pedido es muy largo para mandarlo directo. Ya lo copiamos: abre WhatsApp y pégalo.')
+      if (phone) window.open(url, '_blank', 'noopener')
+    } catch {
+      toast.error('El pedido es muy largo para WhatsApp. Elige un proveedor para mandarlo por partes.')
+    }
+  }
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   return (
@@ -125,11 +140,8 @@ function Inner({ onClose }: { onClose: () => void }) {
                 <Share2 /> Compartir
               </Button>
             )}
-            <Button
-              variant="primary"
-              onClick={() => window.open(`https://wa.me/${phone ?? ''}?text=${encodeURIComponent(text)}`, '_blank', 'noopener')}
-            >
-              <MessageCircle /> {supplierName ? `Mandar a ${supplierName}` : 'WhatsApp'}
+            <Button variant="primary" className="max-w-full" onClick={sendWhatsApp}>
+              <MessageCircle /> <span className="truncate">{supplierName ? `Mandar a ${supplierName}` : 'WhatsApp'}</span>
             </Button>
           </>
         )
@@ -252,8 +264,8 @@ function SupplierPhone({ name, supplierKey: key }: { name: string; supplierKey: 
   }
   if (!editing) {
     return (
-      <Button size="sm" variant="ghost" className="mt-1" onClick={() => setEditing(true)}>
-        <MessageCircle /> Guardar el WhatsApp de {name}
+      <Button size="sm" variant="ghost" className="mt-1 max-w-full" onClick={() => setEditing(true)}>
+        <MessageCircle /> <span className="truncate">Guardar el WhatsApp de {name}</span>
       </Button>
     )
   }

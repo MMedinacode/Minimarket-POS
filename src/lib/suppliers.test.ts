@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeSettings } from '../data/mockData'
 import type { Product, Sale } from '../types'
-import { periodTotals, salesByCategory, salesByPayment, salesBySupplier, salesByWeekday } from './analytics'
+import { periodTotals, salesByCategory, salesByPayment, salesBySupplier, salesByWeekday, soldWithoutCost } from './analytics'
 import { applyImport, parseInventoryRows } from './excel-model'
-import { cleanSupplier, formatPhone, listSuppliers, matchSupplier, normalizePhone, orderText, supplierKey } from './suppliers'
+import { cleanSupplier, formatPhone, listSuppliers, matchSupplier, normalizePhone, orderText, supplierKey, whatsappLink } from './suppliers'
 
 const product = (over: Partial<Product> = {}): Product => ({
   id: 'p1',
@@ -89,6 +89,15 @@ describe('proveedores', () => {
     expect(text).not.toContain('Sin proveedor')
   })
 
+  it('un pedido normal va dentro del link de WhatsApp; uno enorme no', () => {
+    const corto = whatsappLink('Hola, quiero 2 cajas', '56912345678')
+    expect(corto.fits).toBe(true)
+    expect(corto.url).toBe('https://wa.me/56912345678?text=Hola%2C%20quiero%202%20cajas')
+
+    const enorme = whatsappLink('• Aceite de maravilla: 12 un\n'.repeat(300), '56912345678')
+    expect(enorme).toEqual({ url: 'https://wa.me/56912345678', fits: false })
+  })
+
   it('los teléfonos guardados en ajustes sobreviven a normalizar; los ajustes antiguos parten vacíos', () => {
     expect(normalizeSettings({ supplierPhones: { ccu: '56912345678' } }).supplierPhones).toEqual({ ccu: '56912345678' })
     expect(normalizeSettings({}).supplierPhones).toEqual({})
@@ -150,6 +159,16 @@ describe('reportes por período', () => {
       ['CCU', 2000],
       ['Sin proveedor', 1000],
     ])
+  })
+
+  it('cuenta los productos vendidos sin costo anotado (la ganancia sale más alta de lo real)', () => {
+    const sinCosto = (productId: string) => {
+      const s = sale({ productId })
+      return { ...s, items: s.items.map((i) => ({ ...i, unitCost: 0 })) }
+    }
+    const sales = [sinCosto('a'), sinCosto('a'), sinCosto('b'), sale({ productId: 'c' }), { ...sinCosto('d'), voided: true }]
+    expect(soldWithoutCost(sales, from, to)).toBe(2)
+    expect(soldWithoutCost([sale()], from, to)).toBe(0)
   })
 
   it('débito y crédito de ventas antiguas cuentan como Tarjeta', () => {

@@ -32,6 +32,8 @@ Pasos cortos, en orden. El detalle técnico está en el [README](README.md).
 - [ ] Al crear la cuenta, que abra el link de confirmación del correo **en ese mismo equipo** si puede.
       (Si lo abre en el celular igual queda activa: después entra con correo y contraseña en la caja.)
 - [ ] Cargar sus productos: desde su Excel (Más → Excel y respaldo) o uno por uno.
+- [ ] Si le compra a varios proveedores: anotarlos (Productos → Más opciones → Anotar proveedores) y guardar su WhatsApp
+      en el pedido. Y anotar los costos: sin ellos, la caja avisa que la ganancia sale más alta de lo real.
 - [ ] Instalar el ícono en su celular: menú del navegador → *Agregar a pantalla de inicio*.
 - [ ] Practicar juntos: vender, "Llegó mercadería", "Anotar un gasto" y "Contar el cajón".
 - [ ] Mostrarle **¿Olvidaste tu clave? → Pedir ayuda por WhatsApp** y **Más → Cómo se usa**.

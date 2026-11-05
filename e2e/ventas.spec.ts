@@ -22,6 +22,20 @@ async function pedirAnular(page: Page) {
 }
 
 test.describe('Vender (productos por unidad)', () => {
+  test('sin costo anotado, Inicio y Reportes avisan que la ganancia sale más alta', async ({ page }) => {
+    await crearCaja(page)
+    await agregarProducto(page, { nombre: 'Cuaderno', precio: 1500, cuantos: '10' })
+
+    await irA(page, 'Vender')
+    await buscarYAgregar(page, 'Cuaderno')
+    await cobrar(page, 1)
+
+    await irA(page, 'Inicio')
+    await expect(page.getByText('Sale más alto de lo real: 1 producto vendido hoy no tiene anotado cuánto te costó')).toBeVisible()
+    await page.goto('/#/reportes')
+    await expect(page.getByText(/la ganancia sale más alta de lo real porque 1 producto vendido/)).toBeVisible()
+  })
+
   test('vender en efectivo: baja el stock y la venta aparece en Caja', async ({ page }) => {
     await crearCaja(page)
     await agregarProducto(page, { nombre: 'Galletas Tritón', precio: 1500, cuantos: '10' })

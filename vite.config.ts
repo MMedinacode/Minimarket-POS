@@ -74,7 +74,8 @@ export default defineConfig(({ mode }) => ({
   // PORT lo asigna el panel de vista previa si 5173 está ocupado
   server: { host: true, port: Number(process.env.PORT) || 5173 },
   // vitest no debe tomar las pruebas de punta a punta (e2e/, las corre Playwright)
-  test: { exclude: [...configDefaults.exclude, 'e2e/**'] },
+  // 20 s: las pruebas de soporte lanzan procesos de Node y, con el PC ocupado, pasaban de los 5 s por defecto.
+  test: { exclude: [...configDefaults.exclude, 'e2e/**'], testTimeout: 20_000 },
   build: {
     chunkSizeWarningLimit: 900,
   },
